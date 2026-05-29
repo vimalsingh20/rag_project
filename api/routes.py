@@ -10,15 +10,18 @@ from db.runtime_store import store
 from db.faiss_index import add_to_faiss
 from db.faiss_index import index
 from utils.hashing import generate_file_hash
+from datetime import datetime, timedelta
 
 router = APIRouter()
 @router.post("/ask")
 def ask_question(request: QueryRequest):
     question = request.question
-    answer = ask_rag(question)
+    result = ask_rag(question)
     return {
         "question": question,
-        "answer": answer
+        "answer": result['answer'],
+        "processing_time":result['processing_time'],
+        "sources": result['sources']
     }
 @router.post("/upload")
 def upload_pdf(
@@ -30,17 +33,26 @@ def upload_pdf(
         shutil.copyfileobj(
             file.file,
             buffer
-        )
+        )      
+        
     # Generate content hash
     file_hash = generate_file_hash(file_path)
     # Duplicate content checking
     for record in store.records:
-        if record["file_hash"] == file_hash:
-            return {
-                "message": "Duplicate file detected",
 
+        if record["file_hash"] == file_hash:
+
+            upload_time = datetime.fromisoformat(
+            record["upload_time"]
+        )
+
+            if datetime.now() - upload_time < timedelta(days=15):
+
+                return {
+                "message": "Cached document reused",
                 "filename": file.filename
             }
+              
     # Load PDF text
     text = load_pdf(file_path)
     # Split text into chunks
@@ -63,3 +75,19 @@ def upload_pdf(
         "faiss_vectors": index.ntotal,
         "metadata_records": len(store.records)
     }
+    
+    
+@router.get("/documents")
+def get_documents():  
+    documents={}
+    for record in store.records:
+        document_name = record['document']
+        if document_name not in documents:
+            
+            documents[document_name]={
+                "document":document_name,
+                "upload_time":record['upload_time'],
+                "status":"Indexed"                }
+           
+    
+    return list(documents.values())

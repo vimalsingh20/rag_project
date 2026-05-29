@@ -1,13 +1,10 @@
 import os 
 import google.generativeai as genai
-
 from dotenv import load_dotenv
-
 from utils.logger import get_logger
 from utils.exception import CustomException
 
 import sys 
-
 load_dotenv()
 
 genai.configure ( 
@@ -23,9 +20,9 @@ def generate_answer(question,retrieved_chunks):
         context = "\n\n".join(
 
     [
-        f"[Context {idx+1}]\n{result['chunk']}"
+        f"[Context {idx+1}]\n{result['chunk'][:1000]}"
 
-        for idx, result in enumerate(retrieved_chunks)
+        for idx, result in enumerate(retrieved_chunks[:3])
     ]
 )
         prompt = f"""
@@ -46,9 +43,10 @@ Question:
 {question}
 
 Answer:
-"""
-        response = model.generate_content(prompt)
-        
+"""     
+        print(f"Context Length: {len(context)}") 
+        response = model.generate_content(prompt,request_options={"timeout":60})
+       
         logger.info("answer generated sucessfully")
         return response.text
     

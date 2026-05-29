@@ -2,11 +2,11 @@ import json
 import os 
 from datetime import datetime, timedelta
 CACHE_DIR = "embedding_cache"
-
+os.makedirs(CACHE_DIR,exist_ok=True)
 def save_embedding_cache(
     file_hash,records):
     
-    cache_path = f"{CACHE_DIR} /{file_hash}.json"
+    cache_path = f"{CACHE_DIR}/{file_hash}.json"
     with open (cache_path,"w") as file:
         json.dump (records,file,indent=4)
         
