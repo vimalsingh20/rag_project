@@ -53,8 +53,9 @@ try:
     if documents:
         for doc in documents:
 
-            st.sidebar.write(
-                f"{doc['document']}"
+            st.sidebar.link_button(
+                label = f"{doc['document']}",
+                url = f"http://127.0.0.1:8000/document/{doc['document']}"
             )
     else:
         st.sidebar.info(

@@ -52,3 +52,12 @@ class VectorStore:
 
     def get_records(self):
         return self.records
+    
+    def save_records(self):
+
+        with open(METADATA_PATH,"w") as file:
+
+            json.dump(self.records,file,indent=4)
+
+        logger.info(
+        "Metadata saved successfully.")

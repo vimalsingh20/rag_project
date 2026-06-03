@@ -7,7 +7,7 @@ from services.reranker import rerank_chunks
 
 from db.vector_store import VectorStore
 from db.faiss_retrieval import faiss_retrieve
-from db.keyword_retrieval import keyword_retrieve
+from db.bm25_retrieval import bm25_retrieve
 from db.runtime_store import store
 from services.query_preprocessor import preprocess_query
 
@@ -22,15 +22,17 @@ def ask_rag(question):
         query_embedding,
         top_k=3
     )
-    keyword_results = keyword_retrieve(
-        question,
-        store.records,
-        top_k=3
-    )
+    bm25_results = bm25_retrieve(
+    question,
+    store.records,
+    top_k=3
+)
     combined_results = (
         semantic_results +
-        keyword_results
+        bm25_results
     )
+    print(f"Semantic Results: {len(semantic_results)}")
+    print(f"BM25 Results: {len(bm25_results)}")
     unique_results = []
     seen_chunks = set()
     for chunk in combined_results:

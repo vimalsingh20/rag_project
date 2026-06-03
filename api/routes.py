@@ -9,8 +9,11 @@ from services.embedding import get_embedding
 from db.runtime_store import store
 from db.faiss_index import add_to_faiss
 from db.faiss_index import index
+from db.faiss_index import rebuild_faiss_index
 from utils.hashing import generate_file_hash
 from datetime import datetime, timedelta
+from fastapi.responses import FileResponse
+import os 
 
 router = APIRouter()
 @router.post("/ask")
@@ -91,3 +94,51 @@ def get_documents():
            
     
     return list(documents.values())
+
+
+@router.get("/document/{filename}")
+def open_document(filename: str):
+    file_path = f"uploaded_docs/{filename}"
+    print("Current Working Directory:", os.getcwd())
+    print("Trying Path:", file_path)
+    print("Exists:", os.path.exists(file_path))
+    if not os.path.exists(file_path):
+        return {"error":"File not found"}
+    
+    return FileResponse(path=file_path,
+                        media_type="application/pdf",
+                        filename=filename)
+    
+    
+
+@router.delete("/document/{filename}")
+def delete_document(filename: str):
+    file_path = f"uploaded_docs/{filename}"
+
+    if not os.path.exists(file_path):
+        return {
+            "message": "File not found"
+        }
+    file_hash = None
+
+    for record in store.records:
+        if record["document"] == filename:
+            file_hash = record["file_hash"]
+            break
+    os.remove(file_path)
+    store.records = [
+        record
+        for record in store.records
+        if record["document"] != filename]
+    store.save_records()
+    if file_hash:
+        cache_file = (
+            f"embedding_cache/{file_hash}.json"
+        )
+        if os.path.exists(cache_file):
+            os.remove(cache_file)
+    rebuild_faiss_index(
+        store.records)
+    return {
+        "message":
+        f"{filename} deleted successfully"}
