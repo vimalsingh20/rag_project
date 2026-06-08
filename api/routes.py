@@ -13,6 +13,9 @@ from db.faiss_index import rebuild_faiss_index
 from utils.hashing import generate_file_hash
 from datetime import datetime, timedelta
 from fastapi.responses import FileResponse
+from db.mysql_store import (insert_document,insert_chunks)
+from db.mysql_store import get_documents
+from db.mysql_store import (delete_document_from_db)
 import os 
 
 router = APIRouter()
@@ -71,6 +74,21 @@ def upload_pdf(
         file.filename,
         file_hash
     )
+    # store in mysql
+    try:
+
+        document_id = insert_document(file.filename,file_hash,datetime.now())
+
+        insert_chunks(document_id,chunks)
+
+    except Exception as e:
+
+        print(
+        f"MySQL Storage Error: {e}"
+    )
+    
+    
+    
     return {
         "message": "PDF uploaded successfully",
         "filename": file.filename,
@@ -80,7 +98,7 @@ def upload_pdf(
     }
     
     
-@router.get("/documents")
+"""@router.get("/documents")
 def get_documents():  
     documents={}
     for record in store.records:
@@ -93,7 +111,13 @@ def get_documents():
                 "status":"Indexed"                }
            
     
-    return list(documents.values())
+    return list(documents.values())"""
+    
+    
+@router.get("/documents")
+def get_uploaded_documents():
+
+    return get_documents()    
 
 
 @router.get("/document/{filename}")
@@ -138,7 +162,8 @@ def delete_document(filename: str):
         if os.path.exists(cache_file):
             os.remove(cache_file)
     rebuild_faiss_index(
-        store.records)
-    return {
-        "message":
-        f"{filename} deleted successfully"}
+    store.records)
+
+    delete_document_from_db(filename)
+
+    return {"message":f"{filename} deleted successfully"}

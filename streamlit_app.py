@@ -7,82 +7,109 @@ st.set_page_config(
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+
 st.title("RAG PDF Chatbot")
 st.sidebar.header("Upload Document")
-
 if st.sidebar.button("Clear Chat"):
     st.session_state.chat_history = []
     st.rerun()
-
 uploaded_file = st.sidebar.file_uploader(
     "Upload PDF",
-    type=["pdf"]
-)
+    type=["pdf"])
 
 if uploaded_file is not None:
-
     files = {
-        "file": uploaded_file
-    }
-
+        "file": uploaded_file}
     response = requests.post(
         "http://127.0.0.1:8000/upload",
-        files=files
-    )
-
+        files=files)
     message = response.json()["message"]
-
     if message == "Cached document reused":
 
         st.sidebar.success(
-            "Document already processed and reused from cache."
-        )
-
+            "Document already processed and reused from cache.")
     else:
-
         st.sidebar.success(message)
+
 st.sidebar.markdown("---")
 st.sidebar.subheader("Uploaded Documents")
-
 try:
-
     documents_response = requests.get(
         "http://127.0.0.1:8000/documents")
+
     documents = documents_response.json()
-    
     if documents:
         for doc in documents:
+            filename = doc["filename"]
+            col1, col2 = st.sidebar.columns([4, 1])
+            with col1:
+                st.markdown(
+                    f"[{filename}]"
+                    f"(http://127.0.0.1:8000/document/{filename})"
+                )
+            with col2:
+                if st.button(
+                    "🗑",
+                    key=f"delete_{filename}"
+                ):
+                    st.session_state[
+                        f"confirm_delete_{filename}"
+                    ] = True
+            if st.session_state.get(f"confirm_delete_{filename}",False):
+                st.sidebar.warning(
+                    f"Delete {filename} ?")
+                yes_col, no_col = st.sidebar.columns(2)
 
-            st.sidebar.link_button(
-                label = f"{doc['document']}",
-                url = f"http://127.0.0.1:8000/document/{doc['document']}"
-            )
+                with yes_col:
+                    if st.button(
+                        "Yes",
+                        key=f"yes_{filename}"):
+
+                        response = requests.delete(
+                            f"http://127.0.0.1:8000/document/{filename}")
+
+                        st.sidebar.success(
+                            response.json()["message"])
+                        st.rerun()
+
+                with no_col:
+
+                    if st.button(
+                        "No",
+                        key=f"no_{filename}"
+                    ):
+
+                        st.session_state[
+                            f"confirm_delete_{filename}"
+                        ] = False
+
+                        st.rerun()
     else:
         st.sidebar.info(
-            "No documents uploaded yet."
-        )
-except Exception:
+            "No documents uploaded yet.")
+except Exception as e:
     st.sidebar.error(
-        "Unable to load documents."
-    )
+        f"Unable to load documents.{e}")
+
 st.sidebar.markdown("---")
 question = st.text_input(
-    "Ask a question about the document"
-)
+    "Ask a question about the document")
 if st.button("Get Answer"):
-    with st.spinner("Generating answer..."):
+    with st.spinner(
+        "Generating answer..."):
+
         payload = {
-            "question": question
-        }
+            "question": question}
+
         response = requests.post(
             "http://127.0.0.1:8000/ask",
-            json=payload
-        )
-        
+            json=payload)
+
         data = response.json()
         answer = data["answer"]
         processing_time = data["processing_time"]
         sources = data["sources"]
+
         st.session_state.chat_history.append(
             {
                 "question": question,
@@ -92,19 +119,17 @@ if st.button("Get Answer"):
             }
         )
 for chat in st.session_state.chat_history:
+
     st.markdown("Question")
     st.info(chat["question"])
 
     st.markdown("Answer")
     st.success(chat["answer"])
     st.caption(
-        f"Response generated in {chat['processing_time']} sec"
-    )
-
+        f"Response generated in "
+        f"{chat['processing_time']} sec")
     if chat["sources"]:
-
-        st.markdown("Sources Used")
-
+        st.markdown(
+            "Sources Used")
         for source in chat["sources"]:
-
             st.write(f"{source}")

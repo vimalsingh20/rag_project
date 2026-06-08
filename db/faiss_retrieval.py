@@ -1,33 +1,27 @@
-import numpy as np 
-from db.faiss_index import index 
+import numpy as np
+from db.faiss_index import index
 from db.runtime_store import store
 
-def faiss_retrieve(
-    query_embedding,
-    top_k=3
-):
-    
+def faiss_retrieve(query_embedding,top_k=3):
+    print("FAISS vectors:", index.ntotal)
+    print("Store records:", len(store.records))
     query_array = np.array(
         [query_embedding],
-        dtype = np.float32
-    )
-    distances, indices = index.search(query_array,top_k )
-    print("\nFAISS INDICES:")
-    print(indices)
-    print("\nDISTANCES:")
-    print(distances)
+        dtype=np.float32)
+    distances, indices = index.search(
+        query_array,
+        top_k)
     results = []
-    
-    for idx, distance in zip(indices[0],distances[0]):
+    for idx, distance in zip(
+        indices[0],distances[0]):
         if idx == -1:
             continue
-        """if distance > 1.5:
-            continue"""
-        print("\nRetrieved Chunk:")
-        print(store.records[idx]["chunk"])
+        if idx >= len(store.records):
+
+            print(f"Invalid index: {idx}")
+            continue
+        print(
+            store.records[idx]["chunk"])
         results.append(
-            store.records[idx]
-        )
-    print("\nTOTAL RETRIEVED CHUNKS:")
-    print(len(results))
+            store.records[idx])
     return results
