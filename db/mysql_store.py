@@ -1,5 +1,5 @@
 from db.mysql_db import get_connection
-
+import json
 def insert_document(filename,file_hash,upload_time):
     conn = None
     try:
@@ -20,18 +20,20 @@ def insert_document(filename,file_hash,upload_time):
     finally:
         if conn:
             conn.close()
-def insert_chunks(document_id,chunks):
+            
+            
+def insert_chunks(document_id,chunks,embeddings):
     conn = None
     try:
         conn = get_connection()
         cursor = conn.cursor()
         query = """
         INSERT INTO chunks
-        (document_id,chunk_id,chunk_text)
-        VALUES (%s,%s,%s)
+        (document_id,chunk_id,chunk_text,embedding)
+        VALUES (%s,%s,%s,%s)
         """
-        for idx, chunk in enumerate(chunks):
-            cursor.execute(query,(document_id,idx,chunk))
+        for idx, (chunk,embedding) in enumerate (zip (chunks,embeddings)):
+            cursor.execute(query,(document_id,idx,chunk,json.dumps (embedding.tolist())))
         conn.commit()
         print(
             f"{len(chunks)} chunks inserted successfully" )
@@ -41,6 +43,8 @@ def insert_chunks(document_id,chunks):
     finally:
         if conn:
             conn.close()
+            
+            
 def get_documents():
     conn = None 
     try:
@@ -73,4 +77,124 @@ def delete_document_from_db(filename):
     cursor.execute(query,(filename,))
     conn.commit()
     print(f"{filename} deleted successfully")
+    conn.close()
+    
+    
+def get_all_chunks():
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    query = """SELECT *FROM chunks ORDER BY id """
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    chunks = []
+    for row in rows:
+        chunks.append({
+            "chunk": row["chunk_text"],
+            "chunk_id": row["chunk_id"],
+            "document_id": row["document_id"]
+        })
+    conn.close()
+    return chunks
+
+def get_all_embeddings():
+
+    conn = get_connection()
+
+    cursor = conn.cursor(dictionary=True)
+
+    query = """
+    SELECT embedding
+    FROM chunks
+    WHERE embedding IS NOT NULL
+    ORDER BY id
+    """
+
+    cursor.execute(query)
+
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    embeddings = []
+
+    for row in rows:
+
+        embeddings.append(
+            json.loads(
+                row["embedding"]
+            )
+        )
+
+    return embeddings
+
+
+def get_document_by_hash(file_hash):
+
+    conn = get_connection()
+
+    cursor = conn.cursor(dictionary=True)
+
+    query = """
+    SELECT *
+    FROM documents
+    WHERE file_hash = %s
+    """
+
+    cursor.execute(query, (file_hash,))
+
+    document = cursor.fetchone()
+
+    conn.close()
+
+    return document
+
+def get_document_by_filename(filename):
+
+    conn = get_connection()
+
+    cursor = conn.cursor(dictionary=True)
+
+    query = """
+    SELECT *
+    FROM documents
+    WHERE filename = %s
+    """
+
+    cursor.execute(query, (filename,))
+
+    document = cursor.fetchone()
+
+    conn.close()
+
+    return document
+
+
+def get_expired_documents(days=30):
+
+    conn = get_connection()
+
+    cursor = conn.cursor(dictionary=True)
+
+    query = """
+    SELECT *
+    FROM documents
+    WHERE upload_time < NOW() - INTERVAL %s DAY
+    """
+
+    cursor.execute(query, (days,))
+    documents = cursor.fetchall()
+    conn.close()
+    return documents
+
+
+def delete_document_by_id(document_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM chunks WHERE document_id = %s",
+        (document_id,))
+    cursor.execute(
+        "DELETE FROM documents WHERE id = %s",
+        (document_id,))
+    conn.commit()
     conn.close()

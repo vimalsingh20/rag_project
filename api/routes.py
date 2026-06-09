@@ -9,13 +9,15 @@ from services.embedding import get_embedding
 from db.runtime_store import store
 from db.faiss_index import add_to_faiss
 from db.faiss_index import index
-from db.faiss_index import rebuild_faiss_index
+from db.faiss_index import (rebuild_faiss_index_from_mysql)
 from utils.hashing import generate_file_hash
 from datetime import datetime, timedelta
 from fastapi.responses import FileResponse
 from db.mysql_store import (insert_document,insert_chunks)
 from db.mysql_store import get_documents
 from db.mysql_store import (delete_document_from_db)
+from db.mysql_store import get_all_chunks
+from db.mysql_store import (get_document_by_hash,get_document_by_filename)
 import os 
 
 router = APIRouter()
@@ -31,34 +33,24 @@ def ask_question(request: QueryRequest):
     }
 @router.post("/upload")
 def upload_pdf(
-    file: UploadFile = File(...)
-):
+    file: UploadFile = File(...)):
     file_path = f"uploaded_docs/{file.filename}"
     # Save uploaded file
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(
             file.file,
-            buffer
-        )      
-        
+            buffer)
     # Generate content hash
     file_hash = generate_file_hash(file_path)
-    # Duplicate content checking
-    for record in store.records:
-
-        if record["file_hash"] == file_hash:
-
-            upload_time = datetime.fromisoformat(
-            record["upload_time"]
-        )
-
-            if datetime.now() - upload_time < timedelta(days=15):
-
-                return {
+    # Duplicate content checking (MySQL)
+    document = get_document_by_hash(file_hash)
+    if document:
+        upload_time = document["upload_time"]
+        if datetime.now() - upload_time < timedelta(days=15):
+            return {
                 "message": "Cached document reused",
                 "filename": file.filename
             }
-              
     # Load PDF text
     text = load_pdf(file_path)
     # Split text into chunks
@@ -72,32 +64,27 @@ def upload_pdf(
         chunks,
         embeddings,
         file.filename,
-        file_hash
-    )
-    # store in mysql
+        file_hash)
+    # Store in MySQL
     try:
-
-        document_id = insert_document(file.filename,file_hash,datetime.now())
-
-        insert_chunks(document_id,chunks)
-
+        print("Before MySQL Insert")
+        document_id = insert_document(
+            file.filename,
+            file_hash,
+            datetime.now())
+        print("Document ID:", document_id)
+        insert_chunks(document_id,chunks,embeddings)
+        print("Chunks inserted")
     except Exception as e:
-
         print(
-        f"MySQL Storage Error: {e}"
-    )
-    
-    
-    
+            f"MySQL Storage Error: {e}")
     return {
         "message": "PDF uploaded successfully",
         "filename": file.filename,
         "total_chunks": len(chunks),
         "faiss_vectors": index.ntotal,
-        "metadata_records": len(store.records)
+        "metadata_records": len(get_all_chunks())
     }
-    
-    
 """@router.get("/documents")
 def get_documents():  
     documents={}
@@ -138,32 +125,22 @@ def open_document(filename: str):
 @router.delete("/document/{filename}")
 def delete_document(filename: str):
     file_path = f"uploaded_docs/{filename}"
-
     if not os.path.exists(file_path):
         return {
-            "message": "File not found"
-        }
+            "message": "File not found"}
+    document = get_document_by_filename(filename)
     file_hash = None
-
-    for record in store.records:
-        if record["document"] == filename:
-            file_hash = record["file_hash"]
-            break
+    if document:
+        file_hash = document["file_hash"]
     os.remove(file_path)
-    store.records = [
-        record
-        for record in store.records
-        if record["document"] != filename]
-    store.save_records()
     if file_hash:
         cache_file = (
-            f"embedding_cache/{file_hash}.json"
-        )
+            f"embedding_cache/{file_hash}.json")
         if os.path.exists(cache_file):
             os.remove(cache_file)
-    rebuild_faiss_index(
-    store.records)
-
     delete_document_from_db(filename)
+    rebuild_faiss_index_from_mysql()
 
-    return {"message":f"{filename} deleted successfully"}
+    return {
+        "message": f"{filename} deleted successfully"
+    }

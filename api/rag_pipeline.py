@@ -10,7 +10,7 @@ from db.faiss_retrieval import faiss_retrieve
 from db.bm25_retrieval import bm25_retrieve
 from db.runtime_store import store
 from services.query_preprocessor import preprocess_query
-
+from db.mysql_store import get_all_chunks
 import time
 def ask_rag(question):
     question = preprocess_query(question)
@@ -22,9 +22,10 @@ def ask_rag(question):
         query_embedding,
         top_k=3
     )
+    all_chunks = get_all_chunks()
     bm25_results = bm25_retrieve(
     question,
-    store.records,
+    all_chunks,
     top_k=3
 )
     combined_results = (

@@ -1,7 +1,7 @@
 import faiss 
 import numpy as np 
 import os 
-
+from db.mysql_store import get_all_embeddings
 dimension = 384
 
 INDEX_PATH = "saved_index/faiss.index"
@@ -21,7 +21,6 @@ def add_to_faiss(embeddings):
         embeddings,
         dtype = np.float32
     )   
-    
     index.add(embedding_array)
     faiss.write_index(
         index,
@@ -47,3 +46,23 @@ def rebuild_faiss_index(records):
 
     print("\nFAISS index rebuilt successfully.")    
     
+
+def rebuild_faiss_index_from_mysql():
+    global index
+    index = faiss.IndexFlatL2(384)
+    embeddings = get_all_embeddings()
+    if embeddings:
+        embedding_array = np.array(
+            embeddings,
+            dtype=np.float32
+        )
+        index.add(embedding_array)
+
+    faiss.write_index(
+        index,
+        INDEX_PATH
+    )
+
+    print(
+        "\nFAISS rebuilt from MySQL."
+    )    
