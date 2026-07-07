@@ -49,20 +49,26 @@ def rebuild_faiss_index(records):
 
 def rebuild_faiss_index_from_mysql():
     global index
+
     index = faiss.IndexFlatL2(384)
+
     embeddings = get_all_embeddings()
+
+    print("Embeddings loaded:", len(embeddings))
+
     if embeddings:
         embedding_array = np.array(
             embeddings,
             dtype=np.float32
         )
+
         index.add(embedding_array)
+
+    print("FAISS vectors after rebuild:", index.ntotal)
 
     faiss.write_index(
         index,
         INDEX_PATH
     )
 
-    print(
-        "\nFAISS rebuilt from MySQL."
-    )    
+    print("\nFAISS rebuilt from MySQL.")

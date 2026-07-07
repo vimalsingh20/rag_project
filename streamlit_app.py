@@ -106,6 +106,11 @@ if st.button("Get Answer"):
             json=payload)
 
         data = response.json()
+
+        if not data.get("success", True):
+            st.warning(data["message"])
+            st.stop()
+
         answer = data["answer"]
         processing_time = data["processing_time"]
         sources = data["sources"]

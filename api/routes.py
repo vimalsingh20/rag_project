@@ -18,6 +18,10 @@ from db.mysql_store import get_documents
 from db.mysql_store import (delete_document_from_db)
 from db.mysql_store import get_all_chunks
 from db.mysql_store import (get_document_by_hash,get_document_by_filename)
+from db.mysql_store import (
+    clear_active_document,
+    set_active_document
+)
 import os 
 
 router = APIRouter()
@@ -25,12 +29,10 @@ router = APIRouter()
 def ask_question(request: QueryRequest):
     question = request.question
     result = ask_rag(question)
-    return {
-        "question": question,
-        "answer": result['answer'],
-        "processing_time":result['processing_time'],
-        "sources": result['sources']
-    }
+
+    result["question"] = question
+
+    return result
 @router.post("/upload")
 def upload_pdf(
     file: UploadFile = File(...)):
@@ -72,8 +74,13 @@ def upload_pdf(
             file.filename,
             file_hash,
             datetime.now())
-        print("Document ID:", document_id)
+        
         insert_chunks(document_id,chunks,embeddings)
+        clear_active_document()
+        set_active_document(document_id)
+        
+        print("Document ID:", document_id)
+        
         print("Chunks inserted")
     except Exception as e:
         print(

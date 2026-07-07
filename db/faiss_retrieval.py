@@ -1,16 +1,16 @@
 import numpy as np
-from db.faiss_index import index
+import db.faiss_index as faiss_index
 
 from db.mysql_store import get_all_chunks
 def faiss_retrieve(query_embedding,top_k=3):
     all_chunks = get_all_chunks()
 
-    print("FAISS vectors:", index.ntotal)
+    print("FAISS vectors:", faiss_index.index.ntotal)
     print("MySQL chunks:", len(all_chunks))
     query_array = np.array(
         [query_embedding],
         dtype=np.float32)
-    distances, indices = index.search(
+    distances, indices = faiss_index.index.search(
         query_array,
         top_k)
     results = []

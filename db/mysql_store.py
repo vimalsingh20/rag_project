@@ -198,3 +198,91 @@ def delete_document_by_id(document_id):
         (document_id,))
     conn.commit()
     conn.close()
+    
+def has_documents():
+    chunks = get_all_chunks()
+    return len(chunks) > 0 
+
+# clear active document
+def clear_active_document():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    query = """
+    UPDATE documents
+    SET is_active = FALSE
+    """
+
+    cursor.execute(query)
+
+    conn.commit()
+    conn.close()
+    
+# set active document
+def set_active_document(document_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    query = """
+    UPDATE documents
+    SET is_active = TRUE
+    WHERE id = %s
+    """
+
+    cursor.execute(query, (document_id,))
+
+    conn.commit()
+    conn.close()
+    
+# get active document
+def get_active_document():
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    query = """
+    SELECT *
+    FROM documents
+    WHERE is_active = TRUE
+    LIMIT 1
+    """
+
+    cursor.execute(query)
+
+    document = cursor.fetchone()
+
+    conn.close()
+
+    return document
+
+def get_active_chunks():
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    query = """
+    SELECT
+        c.chunk_text,
+        c.chunk_id,
+        c.document_id
+    FROM chunks c
+    JOIN documents d
+    ON c.document_id = d.id
+    WHERE d.is_active = TRUE
+    ORDER BY c.id
+    """
+
+    cursor.execute(query)
+
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    chunks = []
+
+    for row in rows:
+        chunks.append({
+            "chunk": row["chunk_text"],
+            "chunk_id": row["chunk_id"],
+            "document_id": row["document_id"]
+        })
+
+    return chunks           
