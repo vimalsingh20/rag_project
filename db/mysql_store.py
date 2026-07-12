@@ -1,5 +1,13 @@
 from db.mysql_db import get_connection
 import json
+
+from utils.logger import get_logger
+from utils.exception import CustomException
+import sys
+
+
+logger = get_logger(__name__)
+
 def insert_document(filename,file_hash,upload_time):
     conn = None
     try:
@@ -15,7 +23,7 @@ def insert_document(filename,file_hash,upload_time):
         document_id = cursor.lastrowid
         return document_id
     except Exception as e:
-        print(f"Error inserting document: {e}")
+        logger.info(f"Error inserting document: {e}")
         raise
     finally:
         if conn:
@@ -35,10 +43,10 @@ def insert_chunks(document_id,chunks,embeddings):
         for idx, (chunk,embedding) in enumerate (zip (chunks,embeddings)):
             cursor.execute(query,(document_id,idx,chunk,json.dumps (embedding.tolist())))
         conn.commit()
-        print(
+        logger.info(
             f"{len(chunks)} chunks inserted successfully" )
     except Exception as e:
-        print(f"Error inserting chunks: {e}")
+        logger.info(f"Error inserting chunks: {e}")
         raise
     finally:
         if conn:
@@ -61,25 +69,14 @@ def get_documents():
             documents_list.append(document)
         return documents_list
     except Exception as e:
-        print(f"Error Fetching documents: {e}")  
+        logger.info(f"Error Fetching documents: {e}")  
         raise
     finally:
         if conn:
             conn.close()
             
             
-from db.mysql_db import get_connection
-
-def delete_document_from_db(filename):
-    conn = get_connection()
-    cursor = conn.cursor()
-    query = """ DELETE FROM documents WHERE filename = %s"""
-    cursor.execute(query,(filename,))
-    conn.commit()
-    print(f"{filename} deleted successfully")
-    conn.close()
-    
-    
+from db.mysql_db import get_connection    
 def get_all_chunks():
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)

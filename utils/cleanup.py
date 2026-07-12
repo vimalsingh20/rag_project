@@ -3,9 +3,8 @@ from db.mysql_store import (
     delete_document_by_id
 )
 
-from db.faiss_index import (
-    rebuild_faiss_index_from_mysql
-)
+from db.faiss_index import FaissIndex
+
 
 def cleanup_expired_records():
 
@@ -13,12 +12,12 @@ def cleanup_expired_records():
 
     for document in expired_documents:
 
+        faiss_db = FaissIndex(document["id"])
+
+        faiss_db.delete_index()
+
         delete_document_by_id(
             document["id"]
         )
 
-    rebuild_faiss_index_from_mysql()
-
-    print(
-        "\nExpired documents cleaned."
-    )
+    print("\nExpired documents cleaned.")

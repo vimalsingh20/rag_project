@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from utils.logger import get_logger
 from utils.exception import CustomException
 
+from prompts.rag_prompt import RAG_PROMPT
+
 import sys 
 load_dotenv()
 
@@ -17,6 +19,8 @@ model = genai.GenerativeModel(
 
 def generate_answer(question,retrieved_chunks):
     try:
+        if not retrieved_chunks:
+            return "I could not find the answer in the uploaded document."
         context = "\n\n".join(
 
     [
@@ -25,26 +29,11 @@ def generate_answer(question,retrieved_chunks):
         for idx, result in enumerate(retrieved_chunks[:3])
     ]
 )
-        prompt = f"""
-You are a helpful AI assistant.
-Answer the question using ONLY the provided context.
-If the exact answer is not available,
-try to provide the closest relevant information
-from the context.
-Only say:
-"I could not find the answer in the provided document."
-if absolutely no relevant information exists.
-
-Context:
-
-{context}
-
-Question:
-{question}
-
-Answer:
-"""     
-        print(f"Context Length: {len(context)}") 
+        prompt = RAG_PROMPT.format(
+    context=context,
+    question=question
+)  
+        logger.info(f"Context Length: {len(context)}") 
         response = model.generate_content(prompt,request_options={"timeout":60})
        
         logger.info("answer generated sucessfully")

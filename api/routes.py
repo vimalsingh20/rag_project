@@ -1,153 +1,211 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile, File
+from fastapi.responses import FileResponse
 from api.schemas import QueryRequest
 from api.rag_pipeline import ask_rag
-from fastapi import UploadFile, File
 import shutil
+import os
+from datetime import datetime, timedelta
 from ingestion.loader import load_pdf
 from ingestion.chunking import split_text
 from services.embedding import get_embedding
-from db.runtime_store import store
-from db.faiss_index import add_to_faiss
-from db.faiss_index import index
-from db.faiss_index import (rebuild_faiss_index_from_mysql)
-from utils.hashing import generate_file_hash
-from datetime import datetime, timedelta
-from fastapi.responses import FileResponse
-from db.mysql_store import (insert_document,insert_chunks)
-from db.mysql_store import get_documents
-from db.mysql_store import (delete_document_from_db)
-from db.mysql_store import get_all_chunks
-from db.mysql_store import (get_document_by_hash,get_document_by_filename)
+from db.faiss_index import FaissIndex
+
 from db.mysql_store import (
+    insert_document,
+    insert_chunks,
+    get_documents,
+    delete_document_by_id,
+    get_all_chunks,
+    get_document_by_hash,
+    get_document_by_filename,
     clear_active_document,
     set_active_document
 )
-import os 
+
+from utils.hashing import generate_file_hash
+
+from utils.logger import get_logger
+from utils.exception import CustomException
+import sys
+
+
+logger = get_logger(__name__)
 
 router = APIRouter()
+
+
 @router.post("/ask")
 def ask_question(request: QueryRequest):
-    question = request.question
-    result = ask_rag(question)
 
-    result["question"] = question
-
-    return result
-@router.post("/upload")
-def upload_pdf(
-    file: UploadFile = File(...)):
-    file_path = f"uploaded_docs/{file.filename}"
-    # Save uploaded file
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(
-            file.file,
-            buffer)
-    # Generate content hash
-    file_hash = generate_file_hash(file_path)
-    # Duplicate content checking (MySQL)
-    document = get_document_by_hash(file_hash)
-    if document:
-        upload_time = document["upload_time"]
-        if datetime.now() - upload_time < timedelta(days=15):
-            return {
-                "message": "Cached document reused",
-                "filename": file.filename
-            }
-    # Load PDF text
-    text = load_pdf(file_path)
-    # Split text into chunks
-    chunks = split_text(text)
-    # Generate embeddings
-    embeddings = get_embedding(chunks)
-    # Add vectors into FAISS
-    add_to_faiss(embeddings)
-    # Store metadata records
-    store.add_embedding(
-        chunks,
-        embeddings,
-        file.filename,
-        file_hash)
-    # Store in MySQL
     try:
-        print("Before MySQL Insert")
+
+        result = ask_rag(request.question)
+
+        result["success"] = True
+        result["question"] = request.question
+
+        return result
+
+    except Exception as e:
+
+        return {
+            "success": False,
+            "question": request.question,
+            "answer": "",
+            "message": "Unable to process your request. Please try again.",
+            "processing_time": 0,
+            "sources": []
+        }
+
+@router.post("/upload")
+def upload_pdf(file: UploadFile = File(...)):
+
+    try:
+
+        file_path = f"uploaded_docs/{file.filename}"
+
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        file_hash = generate_file_hash(file_path)
+
+        document = get_document_by_hash(file_hash)
+
+        if document:
+
+            upload_time = document["upload_time"]
+
+            if datetime.now() - upload_time < timedelta(days=15):
+
+                return {
+                    "success": True,
+                    "message": "Cached document reused",
+                    "filename": file.filename
+                }
+
+        text = load_pdf(file_path)
+
+        chunks = split_text(text)
+
+        embeddings = get_embedding(chunks)
+
         document_id = insert_document(
             file.filename,
             file_hash,
-            datetime.now())
-        
-        insert_chunks(document_id,chunks,embeddings)
+            datetime.now()
+        )
+
         clear_active_document()
+
         set_active_document(document_id)
-        
-        print("Document ID:", document_id)
-        
-        print("Chunks inserted")
+
+        faiss_db = FaissIndex(document_id)
+
+        faiss_db.load_or_create_index()
+
+        faiss_db.add_embeddings(embeddings)
+
+        insert_chunks(
+            document_id,
+            chunks,
+            embeddings
+        )
+
+        return {
+
+            "success": True,
+            "message": "PDF uploaded successfully",
+            "filename": file.filename,
+            "total_chunks": len(chunks),
+            "faiss_vectors": faiss_db.index.ntotal,
+            "metadata_records": len(get_all_chunks())
+        }
+
     except Exception as e:
-        print(
-            f"MySQL Storage Error: {e}")
-    return {
-        "message": "PDF uploaded successfully",
-        "filename": file.filename,
-        "total_chunks": len(chunks),
-        "faiss_vectors": index.ntotal,
-        "metadata_records": len(get_all_chunks())
-    }
-"""@router.get("/documents")
-def get_documents():  
-    documents={}
-    for record in store.records:
-        document_name = record['document']
-        if document_name not in documents:
-            
-            documents[document_name]={
-                "document":document_name,
-                "upload_time":record['upload_time'],
-                "status":"Indexed"                }
-           
-    
-    return list(documents.values())"""
-    
-    
+
+        return {
+
+            "success": False,
+            "message": "Unable to upload document.",
+            "error": str(e)
+        }
+
 @router.get("/documents")
 def get_uploaded_documents():
 
-    return get_documents()    
+    return get_documents()
 
 
 @router.get("/document/{filename}")
 def open_document(filename: str):
+
     file_path = f"uploaded_docs/{filename}"
-    print("Current Working Directory:", os.getcwd())
-    print("Trying Path:", file_path)
-    print("Exists:", os.path.exists(file_path))
+
     if not os.path.exists(file_path):
-        return {"error":"File not found"}
-    
-    return FileResponse(path=file_path,
-                        media_type="application/pdf",
-                        filename=filename)
-    
-    
+
+        return {
+            "sucess":False,
+            "message":"File not found"
+        }
+
+    return FileResponse(
+        path=file_path,
+        media_type="application/pdf",
+        filename=filename
+    )
 
 @router.delete("/document/{filename}")
 def delete_document(filename: str):
-    file_path = f"uploaded_docs/{filename}"
-    if not os.path.exists(file_path):
-        return {
-            "message": "File not found"}
-    document = get_document_by_filename(filename)
-    file_hash = None
-    if document:
-        file_hash = document["file_hash"]
-    os.remove(file_path)
-    if file_hash:
-        cache_file = (
-            f"embedding_cache/{file_hash}.json")
-        if os.path.exists(cache_file):
-            os.remove(cache_file)
-    delete_document_from_db(filename)
-    rebuild_faiss_index_from_mysql()
 
-    return {
-        "message": f"{filename} deleted successfully"
-    }
+    try:
+
+        file_path = f"uploaded_docs/{filename}"
+
+        if not os.path.exists(file_path):
+
+            return {
+                "success": False,
+                "message": "File not found"
+            }
+
+        document = get_document_by_filename(filename)
+
+        if document is None:
+
+            return {
+                "success": False,
+                "message": "Document not found in database."
+            }
+
+        document_id = document["id"]
+
+        file_hash = document["file_hash"]
+
+        os.remove(file_path)
+
+        cache_file = f"embedding_cache/{file_hash}.json"
+
+        if os.path.exists(cache_file):
+
+            os.remove(cache_file)
+
+        faiss_db = FaissIndex(document_id)
+
+        faiss_db.delete_index()
+
+        delete_document_by_id(document_id)
+
+        return {
+
+            "success": True,
+            "message": f"{filename} deleted successfully"
+        }
+
+    except Exception as e:
+
+        return {
+
+            "success": False,
+            "message": "Unable to delete document.",
+            "error": str(e)
+        }

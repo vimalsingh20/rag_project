@@ -18,24 +18,43 @@ uploaded_file = st.sidebar.file_uploader(
     type=["pdf"])
 
 if uploaded_file is not None:
-    files = {
-        "file": uploaded_file}
-    response = requests.post(
-        "http://127.0.0.1:8000/upload",
-        files=files)
-    message = response.json()["message"]
-    if message == "Cached document reused":
+    try:
+        files = {"file": uploaded_file}
+        response = requests.post(
+            "http://127.0.0.1:8000/upload",
+            files=files,
+            timeout=60)
+        response.raise_for_status()
+        data = response.json()
+        if data["message"] == "Cached document reused":
 
-        st.sidebar.success(
-            "Document already processed and reused from cache.")
-    else:
-        st.sidebar.success(message)
+            st.sidebar.success(
+                "Document already processed and reused from cache.")
+        else:
+            st.sidebar.success(data["message"])
+    except requests.exceptions.ConnectionError:
 
+        st.sidebar.error(
+            "Backend server is not running."
+        )
+
+    except requests.exceptions.Timeout:
+
+        st.sidebar.error(
+            "Upload request timed out."
+        )
+
+    except Exception:
+
+        st.sidebar.error(
+            "Unable to upload document."
+        )
 st.sidebar.markdown("---")
 st.sidebar.subheader("Uploaded Documents")
 try:
     documents_response = requests.get(
-        "http://127.0.0.1:8000/documents")
+    "http://127.0.0.1:8000/documents",timeout=30)
+    documents_response.raise_for_status()
 
     documents = documents_response.json()
     if documents:
@@ -61,16 +80,33 @@ try:
                 yes_col, no_col = st.sidebar.columns(2)
 
                 with yes_col:
-                    if st.button(
-                        "Yes",
-                        key=f"yes_{filename}"):
+                    if st.button("Yes",key=f"yes_{filename}"):
+                        #
+                        
+                        try:
+                            response = requests.delete(
+                                f"http://127.0.0.1:8000/document/{filename}",
+                                timeout=30)
+                            response.raise_for_status()
+                            st.sidebar.success(
+                                response.json()["message"]
+                            )
 
-                        response = requests.delete(
-                            f"http://127.0.0.1:8000/document/{filename}")
+                            st.rerun()
 
-                        st.sidebar.success(
-                            response.json()["message"])
-                        st.rerun()
+                        except requests.exceptions.ConnectionError:
+
+                            st.sidebar.error(
+                                "Backend server is not running."
+                            )
+
+                        except requests.exceptions.Timeout:
+
+                            st.sidebar.error(
+                                "Delete request timed out.")
+                        except Exception:
+                            st.sidebar.error(
+                                "Unable to delete document.")
 
                 with no_col:
 
@@ -87,9 +123,23 @@ try:
     else:
         st.sidebar.info(
             "No documents uploaded yet.")
-except Exception as e:
+except requests.exceptions.ConnectionError:
+
     st.sidebar.error(
-        f"Unable to load documents.{e}")
+        "Backend server is not running."
+    )
+
+except requests.exceptions.Timeout:
+
+    st.sidebar.error(
+        "Server response timed out."
+    )
+
+except Exception:
+
+    st.sidebar.error(
+        "Unable to load documents."
+    )
 
 st.sidebar.markdown("---")
 question = st.text_input(
@@ -100,28 +150,35 @@ if st.button("Get Answer"):
 
         payload = {
             "question": question}
+    
+    try:
 
         response = requests.post(
             "http://127.0.0.1:8000/ask",
-            json=payload)
+            json=payload
+        )
 
         data = response.json()
 
-        if not data.get("success", True):
-            st.warning(data["message"])
-            st.stop()
+        if data["success"]:
 
-        answer = data["answer"]
-        processing_time = data["processing_time"]
-        sources = data["sources"]
+            st.session_state.chat_history.append(
+                {
+                    "question": question,
+                    "answer": data["answer"],
+                    "processing_time": data["processing_time"],
+                    "sources": data["sources"]
+                }
+            )
 
-        st.session_state.chat_history.append(
-            {
-                "question": question,
-                "answer": answer,
-                "processing_time": processing_time,
-                "sources": sources
-            }
+        else:
+
+            st.error(data["message"])
+
+    except Exception:
+
+        st.error(
+            "Unable to connect to the server."
         )
 for chat in st.session_state.chat_history:
 
