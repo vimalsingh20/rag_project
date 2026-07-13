@@ -1,5 +1,3 @@
-from ingestion.loader import load_pdf
-from ingestion.chunking import split_text
 
 from services.embedding import get_embedding
 from services.generator import generate_answer
@@ -10,14 +8,13 @@ from db.mysql_store import (get_active_document,
 )
 from db.bm25_retrieval import bm25_retrieve
 from services.query_preprocessor import preprocess_query
-from db.mysql_store import get_all_chunks,get_active_chunks
 import time
 from db.mysql_store import has_documents
 
 
 from utils.logger import get_logger
-from utils.exception import CustomException
-import sys
+
+from config.settings import TOP_K
 
 logger = get_logger(__name__)
 
@@ -50,13 +47,13 @@ def ask_rag(question):
     semantic_results = faiss_db.retrieve(
         query_embedding,
         active_chunks,
-        top_k=3
+        top_k=TOP_K
     )
     all_chunks = get_active_chunks()
     bm25_results = bm25_retrieve(
     question,
     all_chunks,
-    top_k=3
+    top_k=TOP_K
 )
     combined_results = (
         semantic_results +

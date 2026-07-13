@@ -2,10 +2,11 @@ from sentence_transformers import SentenceTransformer
 from utils.logger import get_logger 
 from utils.exception import CustomException 
 import sys 
+from config.settings import EMBEDDING_MODEL
+
 
 logger = get_logger(__name__)
-
-model = SentenceTransformer('all-MiniLM-L6-v2')
+model = SentenceTransformer(EMBEDDING_MODEL)
 
 def get_embedding(chunks: list):
     try:

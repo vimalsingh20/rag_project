@@ -10,6 +10,11 @@ from ingestion.chunking import split_text
 from services.embedding import get_embedding
 from db.faiss_index import FaissIndex
 
+from config.settings import (
+    UPLOAD_FOLDER,
+    EMBEDDING_CACHE_FOLDER,
+    CACHE_DAYS
+)
 from db.mysql_store import (
     insert_document,
     insert_chunks,
@@ -25,8 +30,6 @@ from db.mysql_store import (
 from utils.hashing import generate_file_hash
 
 from utils.logger import get_logger
-from utils.exception import CustomException
-import sys
 
 
 logger = get_logger(__name__)
@@ -46,7 +49,7 @@ def ask_question(request: QueryRequest):
 
         return result
 
-    except Exception as e:
+    except Exception:
 
         return {
             "success": False,
@@ -62,7 +65,7 @@ def upload_pdf(file: UploadFile = File(...)):
 
     try:
 
-        file_path = f"uploaded_docs/{file.filename}"
+        file_path = f"{UPLOAD_FOLDER}/{file.filename}"
 
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
@@ -75,7 +78,7 @@ def upload_pdf(file: UploadFile = File(...)):
 
             upload_time = document["upload_time"]
 
-            if datetime.now() - upload_time < timedelta(days=15):
+            if datetime.now() - upload_time < timedelta(days=CACHE_DAYS):
 
                 return {
                     "success": True,
@@ -183,7 +186,9 @@ def delete_document(filename: str):
 
         os.remove(file_path)
 
-        cache_file = f"embedding_cache/{file_hash}.json"
+        cache_file = (
+    f"{EMBEDDING_CACHE_FOLDER}/{file_hash}.json"
+)
 
         if os.path.exists(cache_file):
 

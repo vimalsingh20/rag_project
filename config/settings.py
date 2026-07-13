@@ -1,24 +1,18 @@
-# Embedding
-
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
-# Gemini
-
 LLM_MODEL = "models/gemini-2.5-flash"
-
-# Chunking
 
 CHUNK_SIZE = 300
 CHUNK_OVERLAP = 50
 
-# Retrieval
-
 TOP_K = 3
 
-# Cache
+FAISS_DIMENSION = 384
 
 CACHE_DAYS = 15
 
-# FAISS
+UPLOAD_FOLDER = "uploaded_docs"
+EMBEDDING_CACHE_FOLDER = "embedding_cache"
+VECTOR_INDEX_FOLDER = "saved_index/vector_indexes"
 
-FAISS_DIMENSION = 384
+GOOGLE_API_ENV = "GOOGLE_API_KEY"

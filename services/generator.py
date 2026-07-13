@@ -5,7 +5,7 @@ from utils.logger import get_logger
 from utils.exception import CustomException
 
 from prompts.rag_prompt import RAG_PROMPT
-
+from config.settings import LLM_MODEL
 import sys 
 load_dotenv()
 
@@ -14,7 +14,7 @@ genai.configure (
 
 logger  = get_logger(__name__)
 model = genai.GenerativeModel(
-    "models/gemini-2.5-flash"
+    LLM_MODEL
 )
 
 def generate_answer(question,retrieved_chunks):

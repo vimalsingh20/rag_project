@@ -2,9 +2,18 @@ from utils. logger import get_logger
 from utils.exception import CustomException
 import sys 
 
+from config.settings import (
+    CHUNK_SIZE,
+    CHUNK_OVERLAP
+)
+
 logger = get_logger(__name__)
 
-def split_text (text:str, chunk_size : int = 300,overlap: int = 50 ):
+def split_text(
+    text: str,
+    chunk_size=CHUNK_SIZE,
+    overlap=CHUNK_OVERLAP
+):
     
     try:
         words = text.split()

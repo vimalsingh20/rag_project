@@ -2,8 +2,6 @@ from db.mysql_db import get_connection
 import json
 
 from utils.logger import get_logger
-from utils.exception import CustomException
-import sys
 
 
 logger = get_logger(__name__)
@@ -76,7 +74,6 @@ def get_documents():
             conn.close()
             
             
-from db.mysql_db import get_connection    
 def get_all_chunks():
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
