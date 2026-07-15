@@ -23,3 +23,5 @@ embedding_cache/
 
 .DS_Store
 Thumbs.db
+
+.ruff_cache/
