@@ -1,37 +1,39 @@
+
 # RAG PDF Chatbot
 
-A Retrieval-Augmented Generation (RAG) based PDF Chatbot that enables users to upload PDF documents and ask natural language questions. The application retrieves the most relevant document chunks using Hybrid Retrieval (FAISS + BM25) and generates context-aware responses using Google Gemini 2.5 Flash.
+A Retrieval-Augmented Generation (RAG) based chatbot that allows users to upload PDF documents and ask questions in natural language. The application combines Hybrid Retrieval (FAISS + BM25) with Google Gemini 2.5 Flash to generate accurate and context-aware responses.
 
 ---
 
-##  Features
+## Features
 
--  Upload and manage PDF documents
--  Hybrid Retrieval (FAISS + BM25)
--  Semantic Search using Sentence Transformers
--  Google Gemini 2.5 Flash Integration
--  MySQL-based document and chunk storage
--  Per-document FAISS indexing
--  Embedding cache for duplicate documents
--  Prompt management
--  Logging and custom error handling
--  Streamlit frontend with FastAPI backend
+- Upload and manage PDF documents
+- Hybrid Retrieval (FAISS + BM25)
+- Semantic Search using Sentence Transformers
+- Google Gemini 2.5 Flash integration
+- MySQL-based document and chunk storage
+- Per-document FAISS indexing
+- Embedding cache for duplicate documents
+- Prompt management
+- Logging and custom error handling
+- FastAPI backend with Streamlit frontend
 
 ---
 
-##  Tech Stack
+## Tech Stack
 
 - Python
 - FastAPI
 - Streamlit
-- FAISS
-- Sentence Transformers
-- Google Gemini API
 - MySQL
+- FAISS
+- BM25
+- Sentence Transformers
+- Google Gemini 2.5 Flash
 
 ---
 
-##  Project Structure
+## Project Structure
 
 ```text
 rag_project/
@@ -49,13 +51,11 @@ rag_project/
 
 ---
 
-##  Installation
+## Installation
 
 ```bash
 git clone <repository-url>
-
 cd rag_project
-
 pip install -r requirements.txt
 ```
 
@@ -74,23 +74,34 @@ uvicorn api.app:app --reload
 ```bash
 streamlit run streamlit_app.py
 ```
+
 ---
 
-## Future Improvements
+## Roadmap
 
-- JWT Authentication
+### Version 1.0
+- Hybrid Retrieval (FAISS + BM25)
+- Google Gemini Integration
+- MySQL Storage
+- Per-document FAISS Index
+- Streamlit + FastAPI Architecture
+
+### Version 2.0 (Planned)
+- User Authentication
 - Multi-user Support
 - Chat History
 - Conversation Memory
-- Multiple LLM Support (Ollama, OpenAI, Groq)
+- Multiple LLM Support (Gemini + Ollama)
+- Improved UI/UX
 - Docker Deployment
-- CI/CD Pipeline
+- RAG Evaluation Framework
 
 ---
 
-##  Version
+## Current Status
 
-**Current Release:** `v1.0`
+- Version 1.0 Released
+- Version 2.0 In Development
 
 ---
 
