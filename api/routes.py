@@ -10,11 +10,8 @@ from ingestion.chunking import split_text
 from services.embedding import get_embedding
 from db.faiss_index import FaissIndex
 
-from config.settings import (
-    UPLOAD_FOLDER,
-    EMBEDDING_CACHE_FOLDER,
-    CACHE_DAYS
-)
+from config.settings import (UPLOAD_FOLDER,EMBEDDING_CACHE_FOLDER,CACHE_DAYS)
+
 from db.mysql_store import (
     insert_document,
     insert_chunks,
@@ -147,7 +144,7 @@ def open_document(filename: str):
     if not os.path.exists(file_path):
 
         return {
-            "sucess":False,
+            "success":False,
             "message":"File not found"
         }
 

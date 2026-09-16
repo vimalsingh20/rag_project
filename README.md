@@ -101,7 +101,7 @@ streamlit run streamlit_app.py
 ## Current Status
 
 - Version 1.0 Released
-- Version 2.0 In Development
+- Version 2.0 In Development , We are in autheticatin --  for user safety
 
 ---
 
