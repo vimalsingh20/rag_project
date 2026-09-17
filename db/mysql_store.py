@@ -280,3 +280,64 @@ def get_active_chunks():
         })
 
     return chunks           
+
+
+# version 2 start -- authentication 
+
+def create_user(name, email, password_hash):
+    conn = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        query = """
+        INSERT INTO users
+        (name, email, password_hash)
+        VALUES (%s, %s, %s)
+        """
+
+        cursor.execute(
+            query,
+            (name, email, password_hash)
+        )
+
+        conn.commit()
+
+        user_id = cursor.lastrowid
+
+        return user_id
+
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
+        raise
+
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_user_by_email(email):
+    conn = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        query = """
+        SELECT *
+        FROM users
+        WHERE email = %s
+        """
+
+        cursor.execute(query, (email,))
+
+        user = cursor.fetchone()
+
+        return user
+
+    except Exception as e:
+        logger.error(f"Error fetching user: {e}")
+        raise
+
+    finally:
+        if conn:
+            conn.close()
