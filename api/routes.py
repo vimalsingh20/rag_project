@@ -24,6 +24,9 @@ from db.mysql_store import (
     set_active_document
 )
 
+from fastapi import Depends
+from api.dependencies import get_current_user
+
 from utils.hashing import generate_file_hash
 
 from utils.logger import get_logger
@@ -35,11 +38,19 @@ router = APIRouter()
 
 
 @router.post("/ask")
-def ask_question(request: QueryRequest):
+def ask_question(
+    request: QueryRequest,
+    current_user=Depends(get_current_user)
+):
 
     try:
 
-        result = ask_rag(request.question)
+        user_id = current_user["user_id"]
+
+        result = ask_rag(
+            request.question,
+            user_id
+        )
 
         result["success"] = True
         result["question"] = request.question
@@ -58,7 +69,10 @@ def ask_question(request: QueryRequest):
         }
 
 @router.post("/upload")
-def upload_pdf(file: UploadFile = File(...)):
+def upload_pdf(
+    file: UploadFile = File(...),
+    current_user = Depends(get_current_user)
+):
 
     try:
 
@@ -69,8 +83,10 @@ def upload_pdf(file: UploadFile = File(...)):
 
         file_hash = generate_file_hash(file_path)
 
-        document = get_document_by_hash(file_hash)
+        user_id = current_user["user_id"]
 
+        document = get_document_by_hash(
+        user_id,file_hash)
         if document:
 
             upload_time = document["upload_time"]
@@ -89,13 +105,16 @@ def upload_pdf(file: UploadFile = File(...)):
 
         embeddings = get_embedding(chunks)
 
+       
+
         document_id = insert_document(
+            user_id,
             file.filename,
             file_hash,
             datetime.now()
         )
 
-        clear_active_document()
+        clear_active_document(user_id)
 
         set_active_document(document_id)
 
@@ -131,21 +150,41 @@ def upload_pdf(file: UploadFile = File(...)):
         }
 
 @router.get("/documents")
-def get_uploaded_documents():
+def get_uploaded_documents(
+    current_user = Depends(get_current_user)
+):
 
-    return get_documents()
+    user_id = current_user["user_id"]
 
+    return get_documents(user_id)
 
 @router.get("/document/{filename}")
-def open_document(filename: str):
+def open_document(
+    filename: str,
+    current_user = Depends(get_current_user)
+):
 
-    file_path = f"uploaded_docs/{filename}"
+    user_id = current_user["user_id"]
+
+    document = get_document_by_filename(
+        user_id,
+        filename
+    )
+
+    if document is None:
+
+        return {
+            "success": False,
+            "message": "Document not found"
+        }
+
+    file_path = f"{UPLOAD_FOLDER}/{filename}"
 
     if not os.path.exists(file_path):
 
         return {
-            "success":False,
-            "message":"File not found"
+            "success": False,
+            "message": "File not found"
         }
 
     return FileResponse(
@@ -153,52 +192,59 @@ def open_document(filename: str):
         media_type="application/pdf",
         filename=filename
     )
-
+   
+   
 @router.delete("/document/{filename}")
-def delete_document(filename: str):
+def delete_document(
+    filename: str,
+    current_user=Depends(get_current_user)
+):
 
     try:
 
-        file_path = f"uploaded_docs/{filename}"
+        user_id = current_user["user_id"]
+
+        file_path = f"{UPLOAD_FOLDER}/{filename}"
 
         if not os.path.exists(file_path):
-
             return {
                 "success": False,
                 "message": "File not found"
             }
 
-        document = get_document_by_filename(filename)
+        document = get_document_by_filename(
+            user_id,
+            filename
+        )
 
         if document is None:
-
             return {
                 "success": False,
                 "message": "Document not found in database."
             }
 
         document_id = document["id"]
-
         file_hash = document["file_hash"]
 
+        # Delete PDF file
         os.remove(file_path)
 
+        # Delete embedding cache
         cache_file = (
-    f"{EMBEDDING_CACHE_FOLDER}/{file_hash}.json"
-)
+            f"{EMBEDDING_CACHE_FOLDER}/{file_hash}.json"
+        )
 
         if os.path.exists(cache_file):
-
             os.remove(cache_file)
 
+        # Delete FAISS index
         faiss_db = FaissIndex(document_id)
-
         faiss_db.delete_index()
 
+        # Delete database records
         delete_document_by_id(document_id)
 
         return {
-
             "success": True,
             "message": f"{filename} deleted successfully"
         }
@@ -206,7 +252,6 @@ def delete_document(filename: str):
     except Exception as e:
 
         return {
-
             "success": False,
             "message": "Unable to delete document.",
             "error": str(e)

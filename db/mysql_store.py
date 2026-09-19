@@ -6,27 +6,36 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-def insert_document(filename,file_hash,upload_time):
+def insert_document(user_id, filename, file_hash, upload_time):
     conn = None
     try:
         conn = get_connection()
         cursor = conn.cursor()
+
         query = """
         INSERT INTO documents
-        (filename,file_hash,upload_time)
-        VALUES (%s,%s,%s)
+        (user_id, filename, file_hash, upload_time)
+        VALUES (%s, %s, %s, %s)
         """
-        cursor.execute(query,(filename,file_hash,upload_time))
+
+        cursor.execute(
+            query,
+            (user_id, filename, file_hash, upload_time)
+        )
+
         conn.commit()
+
         document_id = cursor.lastrowid
+
         return document_id
+
     except Exception as e:
         logger.info(f"Error inserting document: {e}")
         raise
+
     finally:
         if conn:
             conn.close()
-            
             
 def insert_chunks(document_id,chunks,embeddings):
     conn = None
@@ -51,28 +60,47 @@ def insert_chunks(document_id,chunks,embeddings):
             conn.close()
             
             
-def get_documents():
-    conn = None 
+def get_documents(user_id):
+
+    conn = None
+
     try:
         conn = get_connection()
-        cursor = conn.cursor()   
-        query = """select * from documents"""     
-        cursor.execute(query)   
-        documents = cursor.fetchall()          
-        documents_list =[]
-        for i in documents:
-            document = {
-               "id": i[0],
-               "filename": i[1]}
-            documents_list.append(document)
+        cursor = conn.cursor(dictionary=True)
+
+        query = """
+        SELECT *
+        FROM documents
+        WHERE user_id = %s
+        """
+
+        cursor.execute(
+            query,
+            (user_id,)
+        )
+
+        documents = cursor.fetchall()
+
+        documents_list = []
+
+        for document in documents:
+
+            documents_list.append({
+                "id": document["id"],
+                "filename": document["filename"]
+            })
+
         return documents_list
+
     except Exception as e:
-        logger.info(f"Error Fetching documents: {e}")  
+
+        logger.info(f"Error Fetching documents: {e}")
         raise
+
     finally:
+
         if conn:
             conn.close()
-            
             
 def get_all_chunks():
     conn = get_connection()
@@ -121,8 +149,7 @@ def get_all_embeddings():
 
     return embeddings
 
-
-def get_document_by_hash(file_hash):
+def get_document_by_hash(user_id, file_hash):
 
     conn = get_connection()
 
@@ -131,10 +158,14 @@ def get_document_by_hash(file_hash):
     query = """
     SELECT *
     FROM documents
-    WHERE file_hash = %s
+    WHERE user_id = %s
+    AND file_hash = %s
     """
 
-    cursor.execute(query, (file_hash,))
+    cursor.execute(
+        query,
+        (user_id, file_hash)
+    )
 
     document = cursor.fetchone()
 
@@ -142,7 +173,7 @@ def get_document_by_hash(file_hash):
 
     return document
 
-def get_document_by_filename(filename):
+def get_document_by_filename(user_id, filename):
 
     conn = get_connection()
 
@@ -151,10 +182,14 @@ def get_document_by_filename(filename):
     query = """
     SELECT *
     FROM documents
-    WHERE filename = %s
+    WHERE user_id = %s
+    AND filename = %s
     """
 
-    cursor.execute(query, (filename,))
+    cursor.execute(
+        query,
+        (user_id, filename)
+    )
 
     document = cursor.fetchone()
 
@@ -193,21 +228,45 @@ def delete_document_by_id(document_id):
     conn.commit()
     conn.close()
     
-def has_documents():
-    chunks = get_all_chunks()
-    return len(chunks) > 0 
+def has_documents(user_id):
 
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    query = """
+    SELECT EXISTS(
+        SELECT 1
+        FROM documents
+        WHERE user_id = %s
+    )
+    """
+
+    cursor.execute(
+        query,
+        (user_id,)
+    )
+
+    result = cursor.fetchone()
+
+    conn.close()
+
+    return bool(result[0])
 # clear active document
-def clear_active_document():
+def clear_active_document(user_id):
+
     conn = get_connection()
     cursor = conn.cursor()
 
     query = """
     UPDATE documents
     SET is_active = FALSE
+    WHERE user_id = %s
     """
 
-    cursor.execute(query)
+    cursor.execute(
+        query,
+        (user_id,)
+    )
 
     conn.commit()
     conn.close()
@@ -229,7 +288,8 @@ def set_active_document(document_id):
     conn.close()
     
 # get active document
-def get_active_document():
+def get_active_document(user_id):
+
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
@@ -237,10 +297,14 @@ def get_active_document():
     SELECT *
     FROM documents
     WHERE is_active = TRUE
+    AND user_id = %s
     LIMIT 1
     """
 
-    cursor.execute(query)
+    cursor.execute(
+        query,
+        (user_id,)
+    )
 
     document = cursor.fetchone()
 
@@ -248,7 +312,8 @@ def get_active_document():
 
     return document
 
-def get_active_chunks():
+def get_active_chunks(user_id):
+
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
@@ -259,12 +324,16 @@ def get_active_chunks():
         c.document_id
     FROM chunks c
     JOIN documents d
-    ON c.document_id = d.id
+        ON c.document_id = d.id
     WHERE d.is_active = TRUE
+    AND d.user_id = %s
     ORDER BY c.id
     """
 
-    cursor.execute(query)
+    cursor.execute(
+        query,
+        (user_id,)
+    )
 
     rows = cursor.fetchall()
 
@@ -273,6 +342,7 @@ def get_active_chunks():
     chunks = []
 
     for row in rows:
+
         chunks.append({
             "chunk": row["chunk_text"],
             "chunk_id": row["chunk_id"],
