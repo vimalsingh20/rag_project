@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from api.schemas import RegisterRequest, LoginRequest
+from api.schemas import RegisterRequest, LoginRequest, RefreshTokenRequest
 
 from db.mysql_store import (
     create_user,
@@ -9,6 +9,7 @@ from db.mysql_store import (
 
 from services.password import hash_password ,verify_password
 
+from services.jwt import (create_access_token,create_refresh_token,verify_token)
 
 router = APIRouter(
     prefix="/auth",
@@ -65,11 +66,45 @@ def login_user(request: LoginRequest):
             status_code=401,
             detail="Invalid email or password"
         )
+    access_token = create_access_token(user["id"],user["email"])
+
+    refresh_token = create_refresh_token(user["id"],user["email"])
+    
+    return {
+    "success": True,
+    "message": "Login successful",
+    "user_id": user["id"],
+    "name": user["name"],
+    "email": user["email"],
+    "access_token": access_token,
+    "refresh_token": refresh_token}
+    
+@router.post("/refresh")
+def refresh_access_token(request: RefreshTokenRequest):
+
+    payload = verify_token(
+        request.refresh_token
+    )
+
+    if payload is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired refresh token"
+        )
+
+    if payload["token_type"] != "refresh":
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid refresh token"
+        )
+
+    new_access_token = create_access_token(
+        payload["user_id"],
+        payload["email"]
+    )
 
     return {
         "success": True,
-        "message": "Login successful",
-        "user_id": user["id"],
-        "name": user["name"],
-        "email": user["email"]
+        "message": "Access token refreshed successfully",
+        "access_token": new_access_token
     }
