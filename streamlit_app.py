@@ -1,197 +1,143 @@
 import streamlit as st
-import requests
+
+from frontend.login_page import (
+    show_login_page,
+    show_register_page
+)
+
+from frontend.document_manager import (
+    show_document_manager
+)
+
+from frontend.chat_interface import (
+    show_chat_interface
+)
+
+
+# =========================================
+# Page Configuration
+# =========================================
 
 st.set_page_config(
     page_title="RAG PDF Chatbot",
-    layout="wide")
+    layout="wide"
+)
+
+
+# =========================================
+# Session State Initialization
+# =========================================
+
+if "access_token" not in st.session_state:
+    st.session_state.access_token = None
+
+if "refresh_token" not in st.session_state:
+    st.session_state.refresh_token = None
+
+if "user_id" not in st.session_state:
+    st.session_state.user_id = None
+
+if "user_name" not in st.session_state:
+    st.session_state.user_name = None
+
+if "user_email" not in st.session_state:
+    st.session_state.user_email = None
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-st.title("RAG PDF Chatbot")
-st.sidebar.header("Upload Document")
-if st.sidebar.button("Clear Chat"):
-    st.session_state.chat_history = []
-    st.rerun()
-uploaded_file = st.sidebar.file_uploader(
-    "Upload PDF",
-    type=["pdf"])
+if "show_register" not in st.session_state:
+    st.session_state.show_register = False
 
-if uploaded_file is not None:
-    try:
-        files = {"file": uploaded_file}
-        response = requests.post(
-            "http://127.0.0.1:8000/upload",
-            files=files,
-            timeout=60)
-        response.raise_for_status()
-        data = response.json()
-        if data["message"] == "Cached document reused":
 
-            st.sidebar.success(
-                "Document already processed and reused from cache.")
-        else:
-            st.sidebar.success(data["message"])
-    except requests.exceptions.ConnectionError:
+# =========================================
+# Authentication Check
+# =========================================
 
-        st.sidebar.error(
-            "Backend server is not running."
-        )
+if not st.session_state.access_token:
 
-    except requests.exceptions.Timeout:
+    # -----------------------------------------
+    # Register Page
+    # -----------------------------------------
 
-        st.sidebar.error(
-            "Upload request timed out."
-        )
+    if st.session_state.show_register:
 
-    except Exception:
+        show_register_page()
 
-        st.sidebar.error(
-            "Unable to upload document."
-        )
-st.sidebar.markdown("---")
-st.sidebar.subheader("Uploaded Documents")
-try:
-    documents_response = requests.get(
-    "http://127.0.0.1:8000/documents",timeout=30)
-    documents_response.raise_for_status()
+        st.markdown("---")
 
-    documents = documents_response.json()
-    if documents:
-        for doc in documents:
-            filename = doc["filename"]
-            col1, col2 = st.sidebar.columns([4, 1])
-            with col1:
-                st.markdown(
-                    f"[{filename}]"
-                    f"(http://127.0.0.1:8000/document/{filename})"
-                )
-            with col2:
-                if st.button(
-                    "🗑",
-                    key=f"delete_{filename}"
-                ):
-                    st.session_state[
-                        f"confirm_delete_{filename}"
-                    ] = True
-            if st.session_state.get(f"confirm_delete_{filename}",False):
-                st.sidebar.warning(
-                    f"Delete {filename} ?")
-                yes_col, no_col = st.sidebar.columns(2)
+        if st.button(
+            "Already have an account? Login"
+        ):
 
-                with yes_col:
-                    if st.button("Yes",key=f"yes_{filename}"):
-                        #
-                        
-                        try:
-                            response = requests.delete(
-                                f"http://127.0.0.1:8000/document/{filename}",
-                                timeout=30)
-                            response.raise_for_status()
-                            st.sidebar.success(
-                                response.json()["message"]
-                            )
+            st.session_state.show_register = False
 
-                            st.rerun()
+            st.rerun()
 
-                        except requests.exceptions.ConnectionError:
+    # -----------------------------------------
+    # Login Page
+    # -----------------------------------------
 
-                            st.sidebar.error(
-                                "Backend server is not running."
-                            )
-
-                        except requests.exceptions.Timeout:
-
-                            st.sidebar.error(
-                                "Delete request timed out.")
-                        except Exception:
-                            st.sidebar.error(
-                                "Unable to delete document.")
-
-                with no_col:
-
-                    if st.button(
-                        "No",
-                        key=f"no_{filename}"
-                    ):
-
-                        st.session_state[
-                            f"confirm_delete_{filename}"
-                        ] = False
-
-                        st.rerun()
     else:
-        st.sidebar.info(
-            "No documents uploaded yet.")
-except requests.exceptions.ConnectionError:
 
-    st.sidebar.error(
-        "Backend server is not running."
+        show_login_page()
+
+        st.markdown("---")
+
+        if st.button(
+            "Don't have an account? Register"
+        ):
+
+            st.session_state.show_register = True
+
+            st.rerun()
+
+
+# =========================================
+# Main Application
+# =========================================
+
+else:
+
+    # -----------------------------------------
+    # Header
+    # -----------------------------------------
+
+    st.title("RAG PDF Chatbot")
+
+    st.sidebar.success(
+        f"Welcome, {st.session_state.user_name}"
     )
 
-except requests.exceptions.Timeout:
-
-    st.sidebar.error(
-        "Server response timed out."
+    st.sidebar.caption(
+        st.session_state.user_email
     )
 
-except Exception:
+    # -----------------------------------------
+    # Logout
+    # -----------------------------------------
 
-    st.sidebar.error(
-        "Unable to load documents."
-    )
+    if st.sidebar.button(
+        "Logout"
+    ):
 
-st.sidebar.markdown("---")
-question = st.text_input(
-    "Ask a question about the document")
-if st.button("Get Answer"):
-    with st.spinner(
-        "Generating answer..."):
+        st.session_state.access_token = None
+        st.session_state.refresh_token = None
+        st.session_state.user_id = None
+        st.session_state.user_name = None
+        st.session_state.user_email = None
+        st.session_state.chat_history = []
 
-        payload = {
-            "question": question}
-    
-    try:
+        st.rerun()
 
-        response = requests.post(
-            "http://127.0.0.1:8000/ask",
-            json=payload
-        )
+    # -----------------------------------------
+    # Document Manager
+    # -----------------------------------------
 
-        data = response.json()
+    show_document_manager()
 
-        if data["success"]:
+    # -----------------------------------------
+    # Chat Interface
+    # -----------------------------------------
 
-            st.session_state.chat_history.append(
-                {
-                    "question": question,
-                    "answer": data["answer"],
-                    "processing_time": data["processing_time"],
-                    "sources": data["sources"]
-                }
-            )
-
-        else:
-
-            st.error(data["message"])
-
-    except Exception:
-
-        st.error(
-            "Unable to connect to the server."
-        )
-for chat in st.session_state.chat_history:
-
-    st.markdown("Question")
-    st.info(chat["question"])
-
-    st.markdown("Answer")
-    st.success(chat["answer"])
-    st.caption(
-        f"Response generated in "
-        f"{chat['processing_time']} sec")
-    if chat["sources"]:
-        st.markdown(
-            "Sources Used")
-        for source in chat["sources"]:
-            st.write(f"{source}")
+    show_chat_interface()

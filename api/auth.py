@@ -1,21 +1,13 @@
 from fastapi import APIRouter, HTTPException
-
 from api.schemas import RegisterRequest, LoginRequest, RefreshTokenRequest
-
 from db.mysql_store import (
     create_user,
-    get_user_by_email
-)
-
+    get_user_by_email)
 from services.password import hash_password ,verify_password
-
 from services.jwt import (create_access_token,create_refresh_token,verify_token)
 
-router = APIRouter(
-    prefix="/auth",
-    tags=["Authentication"]
-)
-
+router = APIRouter(prefix="/auth",
+    tags=["Authentication"])
 
 @router.post("/register")
 def register_user(request: RegisterRequest):
