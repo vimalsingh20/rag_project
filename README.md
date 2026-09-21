@@ -1,112 +1,89 @@
-
 # RAG PDF Chatbot
 
-A Retrieval-Augmented Generation (RAG) based chatbot that allows users to upload PDF documents and ask questions in natural language. The application combines Hybrid Retrieval (FAISS + BM25) with Google Gemini 2.5 Flash to generate accurate and context-aware responses.
+A Retrieval-Augmented Generation (RAG) based chatbot that allows users to upload PDF documents and ask questions in natural language.
+
+The application uses Hybrid Retrieval (FAISS + BM25) along with Google Gemini 2.5 Flash to generate accurate and context-aware responses from uploaded documents.
 
 ---
 
 ## Features
 
-- Upload and manage PDF documents
-- Hybrid Retrieval (FAISS + BM25)
-- Semantic Search using Sentence Transformers
-- Google Gemini 2.5 Flash integration
-- MySQL-based document and chunk storage
+### Document Processing
+
+- Upload PDF documents
+- Extract text from PDF files
+- Split documents into chunks
+- Generate embeddings using Sentence Transformers
+- Store documents and chunks in MySQL
 - Per-document FAISS indexing
 - Embedding cache for duplicate documents
-- Prompt management
-- Logging and custom error handling
-- FastAPI backend with Streamlit frontend
+- Delete uploaded documents
+- Active document management
+
+### Hybrid Retrieval
+
+- Semantic Search using FAISS
+- Keyword Search using BM25
+- Hybrid retrieval combining FAISS and BM25 results
+- Duplicate chunk removal
+- Reranking of retrieved chunks
+- Context-aware answer generation
+
+### LLM Integration
+
+- Google Gemini 2.5 Flash
+- Prompt-based answer generation
+- Query preprocessing
+- Source information in responses
+
+### Authentication & Security
+
+- User registration
+- User login
+- Password hashing using Argon2
+- JWT-based authentication
+- Access token
+- Refresh token
+- Protected API endpoints
+- User-specific document access
+- User-specific document upload
+- User-specific document deletion
+- User-specific RAG question answering
+
+### Frontend
+
+- Streamlit frontend
+- Modular frontend architecture
+- Login and registration interface
+- PDF upload interface
+- Document management interface
+- Chat interface
+- Chat history during the current session
+
+### Backend
+
+- FastAPI REST API
+- MySQL database integration
+- FAISS vector search
+- BM25 retrieval
+- Logging
+- Custom error handling
 
 ---
 
 ## Tech Stack
 
-- Python
-- FastAPI
-- Streamlit
-- MySQL
-- FAISS
-- BM25
-- Sentence Transformers
-- Google Gemini 2.5 Flash
+| Technology | Purpose |
+|------------|---------|
+| Python | Core programming language |
+| FastAPI | Backend API |
+| Streamlit | Frontend |
+| MySQL | Database |
+| FAISS | Vector similarity search |
+| BM25 | Keyword-based retrieval |
+| Sentence Transformers | Text embeddings |
+| Google Gemini 2.5 Flash | Answer generation |
+| JWT | Authentication |
+| Argon2 | Password hashing |
 
 ---
-
-## Project Structure
-
-```text
-rag_project/
-│── api/
-│── config/
-│── db/
-│── ingestion/
-│── prompts/
-│── services/
-│── utils/
-│── streamlit_app.py
-│── requirements.txt
-│── README.md
-```
-
----
-
-## Installation
-
-```bash
-git clone <repository-url>
-cd rag_project
-pip install -r requirements.txt
-```
-
----
-
-## Run the Application
-
-### Start FastAPI
-
-```bash
-uvicorn api.app:app --reload
-```
-
-### Start Streamlit
-
-```bash
-streamlit run streamlit_app.py
-```
-
----
-
-## Roadmap
-
-### Version 1.0
-- Hybrid Retrieval (FAISS + BM25)
-- Google Gemini Integration
-- MySQL Storage
-- Per-document FAISS Index
-- Streamlit + FastAPI Architecture
-
-### Version 2.0 (Planned)
-- User Authentication
-- Multi-user Support
-- Chat History
-- Conversation Memory
-- Multiple LLM Support (Gemini + Ollama)
-- Improved UI/UX
-- Docker Deployment
-- RAG Evaluation Framework
-
----
-
-## Current Status
-
-- Version 1.0 Released
-- Version 2.0 In Development , We are in autheticatin --  for user safety
-
----
-
-## Author
-
-**Vimal Singh**
-
-B.Tech Computer Science Engineering
