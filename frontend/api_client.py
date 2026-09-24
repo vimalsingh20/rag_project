@@ -110,6 +110,18 @@ def get_documents():
 
     return response.json()
 
+def get_document(filename):
+
+    response = requests.get(
+        f"{BASE_URL}/document/{filename}",
+        headers=get_auth_headers(),
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    return response
+
 
 def delete_document(filename):
 

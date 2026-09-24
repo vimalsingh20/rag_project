@@ -1,20 +1,19 @@
 import streamlit as st
 
 from frontend.api_client import (
-    upload_document,
     get_documents,
-    delete_document,
-    get_document_url
+    get_document,
+    delete_document
 )
 
 
 def show_document_manager():
 
+    st.sidebar.header("Document Manager")
+
     # =========================================
     # Upload Document
     # =========================================
-
-    st.sidebar.header("Upload Document")
 
     uploaded_file = st.sidebar.file_uploader(
         "Upload PDF",
@@ -22,6 +21,8 @@ def show_document_manager():
     )
 
     if uploaded_file is not None:
+
+        from frontend.api_client import upload_document
 
         try:
 
@@ -32,8 +33,7 @@ def show_document_manager():
             if data.get("message") == "Cached document reused":
 
                 st.sidebar.success(
-                    "Document already processed "
-                    "and reused from cache."
+                    "Document already processed and reused from cache."
                 )
 
             else:
@@ -41,9 +41,11 @@ def show_document_manager():
                 st.sidebar.success(
                     data.get(
                         "message",
-                        "PDF uploaded successfully."
+                        "Document uploaded successfully."
                     )
                 )
+
+            st.rerun()
 
         except Exception:
 
@@ -51,151 +53,211 @@ def show_document_manager():
                 "Unable to upload document."
             )
 
-    # =========================================
-    # Clear Chat
-    # =========================================
-
-    if st.sidebar.button("Clear Chat"):
-
-        st.session_state.chat_history = []
-
-        st.rerun()
+    st.sidebar.markdown("---")
 
     # =========================================
     # Uploaded Documents
     # =========================================
 
-    st.sidebar.markdown("---")
-
-    st.sidebar.subheader(
-        "Uploaded Documents"
-    )
+    st.sidebar.subheader("Uploaded Documents")
 
     try:
 
         documents = get_documents()
 
-        if documents:
+        if not documents:
 
-            for doc in documents:
+            st.sidebar.info(
+                "No documents uploaded yet."
+            )
 
-                filename = doc["filename"]
+            return
 
-                # ---------------------------------
-                # Document + Delete Button
-                # ---------------------------------
+        for doc in documents:
 
-                col1, col2 = st.sidebar.columns(
-                    [4, 1]
-                )
+            filename = doc["filename"]
 
-                # Open document
-                with col1:
+            # ---------------------------------
+            # Document name
+            # ---------------------------------
 
-                    document_url = get_document_url(
-                        filename
-                    )
+            st.sidebar.markdown(
+                f"📄 **{filename}**"
+            )
 
-                    st.markdown(
-                        f"[{filename}]"
-                        f"({document_url})"
-                    )
+            col1, col2 = st.sidebar.columns(2)
 
-                # Delete button
-                with col2:
+            # =================================
+            # VIEW PDF
+            # =================================
 
-                    if st.button(
-                        "🗑",
-                        key=f"delete_{filename}"
-                    ):
+            with col1:
 
-                        st.session_state[
-                            f"confirm_delete_{filename}"
-                        ] = True
-
-                # ---------------------------------
-                # Delete Confirmation
-                # ---------------------------------
-
-                if st.session_state.get(
-                    f"confirm_delete_{filename}",
-                    False
+                if st.button(
+                    "👁 View",
+                    key=f"view_{filename}"
                 ):
 
-                    st.sidebar.warning(
-                        f"Delete {filename}?"
-                    )
+                    try:
 
-                    yes_col, no_col = (
-                        st.sidebar.columns(2)
-                    )
+                        response = get_document(
+                            filename
+                        )
 
-                    # YES
-                    with yes_col:
+                        st.session_state[
+                            "viewed_pdf"
+                        ] = response.content
 
-                        if st.button(
-                            "Yes",
-                            key=f"yes_{filename}"
-                        ):
+                        st.session_state[
+                            "viewed_filename"
+                        ] = filename
 
-                            try:
+                        st.rerun()
 
-                                data = delete_document(
-                                    filename
-                                )
+                    except Exception:
 
-                                if data.get("success"):
+                        st.sidebar.error(
+                            "Unable to open PDF."
+                        )
 
-                                    st.sidebar.success(
-                                        data.get(
-                                            "message",
-                                            "Document deleted successfully."
-                                        )
-                                    )
+            # =================================
+            # DELETE
+            # =================================
 
-                                    st.session_state[
-                                        f"confirm_delete_{filename}"
-                                    ] = False
+            with col2:
 
-                                    st.rerun()
+                if st.button(
+                    "🗑 Delete",
+                    key=f"delete_{filename}"
+                ):
 
-                                else:
+                    st.session_state[
+                        f"confirm_delete_{filename}"
+                    ] = True
 
-                                    st.sidebar.error(
-                                        data.get(
-                                            "message",
-                                            "Unable to delete document."
-                                        )
-                                    )
+            # =================================
+            # DELETE CONFIRMATION
+            # =================================
 
-                            except Exception:
+            if st.session_state.get(
+                f"confirm_delete_{filename}",
+                False
+            ):
 
-                                st.sidebar.error(
-                                    "Unable to delete document."
-                                )
+                st.sidebar.warning(
+                    f"Delete {filename}?"
+                )
 
-                    # NO
-                    with no_col:
+                yes_col, no_col = st.sidebar.columns(2)
 
-                        if st.button(
-                            "No",
-                            key=f"no_{filename}"
-                        ):
+                with yes_col:
+
+                    if st.button(
+                        "Yes",
+                        key=f"yes_{filename}"
+                    ):
+
+                        try:
+
+                            delete_document(
+                                filename
+                            )
 
                             st.session_state[
                                 f"confirm_delete_{filename}"
                             ] = False
 
+                            st.sidebar.success(
+                                "Document deleted successfully."
+                            )
+
                             st.rerun()
 
-        else:
+                        except Exception:
 
-            st.sidebar.info(
-                "No documents uploaded yet."
-            )
+                            st.sidebar.error(
+                                "Unable to delete document."
+                            )
+
+                with no_col:
+
+                    if st.button(
+                        "No",
+                        key=f"no_{filename}"
+                    ):
+
+                        st.session_state[
+                            f"confirm_delete_{filename}"
+                        ] = False
+
+                        st.rerun()
 
     except Exception:
 
         st.sidebar.error(
             "Unable to load documents."
         )
+
+
+# =========================================
+# PDF Viewer
+# =========================================
+
+def show_pdf_viewer():
+
+    if "viewed_pdf" not in st.session_state:
+
+        return
+
+    if "viewed_filename" not in st.session_state:
+
+        return
+
+    filename = st.session_state[
+        "viewed_filename"
+    ]
+
+    pdf_data = st.session_state[
+        "viewed_pdf"
+    ]
+
+    st.markdown("---")
+
+    st.subheader(
+        f"📄 {filename}"
+    )
+
+    # =========================================
+    # Download Button
+    # =========================================
+
+    st.download_button(
+        label="⬇ Download PDF",
+        data=pdf_data,
+        file_name=filename,
+        mime="application/pdf"
+    )
+
+    # =========================================
+    # PDF Viewer
+    # =========================================
+
+    import base64
+
+    pdf_base64 = base64.b64encode(
+        pdf_data
+    ).decode("utf-8")
+
+    pdf_display = f"""
+    <iframe
+        src="data:application/pdf;base64,{pdf_base64}"
+        width="100%"
+        height="800"
+        type="application/pdf">
+    </iframe>
+    """
+
+    st.markdown(
+        pdf_display,
+        unsafe_allow_html=True
+    )

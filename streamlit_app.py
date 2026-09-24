@@ -6,7 +6,7 @@ from frontend.login_page import (
 )
 
 from frontend.document_manager import (
-    show_document_manager
+    show_document_manager,show_pdf_viewer
 )
 
 from frontend.chat_interface import (
@@ -135,6 +135,9 @@ else:
     # -----------------------------------------
 
     show_document_manager()
+    
+    # pdf viewer
+    show_pdf_viewer()
 
     # -----------------------------------------
     # Chat Interface
