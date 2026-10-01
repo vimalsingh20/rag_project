@@ -1,11 +1,18 @@
+import base64
+
 import streamlit as st
 
 from frontend.api_client import (
     get_documents,
     get_document,
-    delete_document
+    delete_document,
+    upload_document
 )
 
+
+# =========================================
+# Document Manager
+# =========================================
 
 def show_document_manager():
 
@@ -17,41 +24,46 @@ def show_document_manager():
 
     uploaded_file = st.sidebar.file_uploader(
         "Upload PDF",
-        type=["pdf"]
+        type=["pdf"],
+        key="pdf_uploader"
     )
 
     if uploaded_file is not None:
 
-        from frontend.api_client import upload_document
+        if st.sidebar.button(
+            "Upload PDF",
+            key="upload_pdf_button"
+        ):
 
-        try:
+            try:
 
-            data = upload_document(
-                uploaded_file
-            )
-
-            if data.get("message") == "Cached document reused":
-
-                st.sidebar.success(
-                    "Document already processed and reused from cache."
+                data = upload_document(
+                    uploaded_file
                 )
 
-            else:
+                if data.get("message") == "Cached document reused":
 
-                st.sidebar.success(
-                    data.get(
-                        "message",
-                        "Document uploaded successfully."
+                    st.sidebar.success(
+                        "Document already processed "
+                        "and reused from cache."
                     )
+
+                else:
+
+                    st.sidebar.success(
+                        data.get(
+                            "message",
+                            "Document uploaded successfully."
+                        )
+                    )
+
+                st.rerun()
+
+            except Exception:
+
+                st.sidebar.error(
+                    "Unable to upload document."
                 )
-
-            st.rerun()
-
-        except Exception:
-
-            st.sidebar.error(
-                "Unable to upload document."
-            )
 
     st.sidebar.markdown("---")
 
@@ -59,7 +71,9 @@ def show_document_manager():
     # Uploaded Documents
     # =========================================
 
-    st.sidebar.subheader("Uploaded Documents")
+    st.sidebar.subheader(
+        "Uploaded Documents"
+    )
 
     try:
 
@@ -77,18 +91,20 @@ def show_document_manager():
 
             filename = doc["filename"]
 
-            # ---------------------------------
-            # Document name
-            # ---------------------------------
+            # =================================
+            # Document Name
+            # =================================
 
             st.sidebar.markdown(
                 f"📄 **{filename}**"
             )
 
-            col1, col2 = st.sidebar.columns(2)
+            col1, col2 = st.sidebar.columns(
+                [1, 1]
+            )
 
             # =================================
-            # VIEW PDF
+            # View PDF
             # =================================
 
             with col1:
@@ -121,7 +137,7 @@ def show_document_manager():
                         )
 
             # =================================
-            # DELETE
+            # Delete PDF
             # =================================
 
             with col2:
@@ -136,7 +152,7 @@ def show_document_manager():
                     ] = True
 
             # =================================
-            # DELETE CONFIRMATION
+            # Delete Confirmation
             # =================================
 
             if st.session_state.get(
@@ -148,7 +164,13 @@ def show_document_manager():
                     f"Delete {filename}?"
                 )
 
-                yes_col, no_col = st.sidebar.columns(2)
+                yes_col, no_col = (
+                    st.sidebar.columns(2)
+                )
+
+                # ---------------------------------
+                # Confirm Delete
+                # ---------------------------------
 
                 with yes_col:
 
@@ -167,6 +189,23 @@ def show_document_manager():
                                 f"confirm_delete_{filename}"
                             ] = False
 
+                            # Remove currently viewed PDF
+                            if (
+                                st.session_state.get(
+                                    "viewed_filename"
+                                ) == filename
+                            ):
+
+                                st.session_state.pop(
+                                    "viewed_pdf",
+                                    None
+                                )
+
+                                st.session_state.pop(
+                                    "viewed_filename",
+                                    None
+                                )
+
                             st.sidebar.success(
                                 "Document deleted successfully."
                             )
@@ -178,6 +217,10 @@ def show_document_manager():
                             st.sidebar.error(
                                 "Unable to delete document."
                             )
+
+                # ---------------------------------
+                # Cancel Delete
+                # ---------------------------------
 
                 with no_col:
 
@@ -206,11 +249,9 @@ def show_document_manager():
 def show_pdf_viewer():
 
     if "viewed_pdf" not in st.session_state:
-
         return
 
     if "viewed_filename" not in st.session_state:
-
         return
 
     filename = st.session_state[
@@ -228,14 +269,15 @@ def show_pdf_viewer():
     )
 
     # =========================================
-    # Download Button
+    # Download PDF
     # =========================================
 
     st.download_button(
         label="⬇ Download PDF",
         data=pdf_data,
         file_name=filename,
-        mime="application/pdf"
+        mime="application/pdf",
+        key=f"download_{filename}"
     )
 
     # =========================================
@@ -248,16 +290,64 @@ def show_pdf_viewer():
         pdf_data
     ).decode("utf-8")
 
-    pdf_display = f"""
-    <iframe
-        src="data:application/pdf;base64,{pdf_base64}"
-        width="100%"
-        height="800"
-        type="application/pdf">
-    </iframe>
+    pdf_html = f"""
+    <html>
+    <body style="margin:0; padding:0;">
+
+        <iframe
+            id="pdfViewer"
+            width="100%"
+            height="800px"
+            style="border:none;">
+        </iframe>
+
+        <script>
+
+            const base64Data = "{pdf_base64}";
+
+            const byteCharacters = atob(base64Data);
+
+            const byteNumbers = new Array(
+                byteCharacters.length
+            );
+
+            for (
+                let i = 0;
+                i < byteCharacters.length;
+                i++
+            ) {{
+                byteNumbers[i] =
+                    byteCharacters.charCodeAt(i);
+            }}
+
+            const byteArray = new Uint8Array(
+                byteNumbers
+            );
+
+            const blob = new Blob(
+                [byteArray],
+                {{
+                    type: "application/pdf"
+                }}
+            );
+
+            const pdfUrl =
+                URL.createObjectURL(blob);
+
+            document
+                .getElementById("pdfViewer")
+                .src = pdfUrl;
+
+        </script>
+
+    </body>
+    </html>
     """
 
-    st.markdown(
-        pdf_display,
-        unsafe_allow_html=True
+    import streamlit.components.v1 as components
+
+    components.html(
+        pdf_html,
+        height=820,
+        scrolling=False
     )

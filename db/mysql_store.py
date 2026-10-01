@@ -411,3 +411,258 @@ def get_user_by_email(email):
     finally:
         if conn:
             conn.close()
+            
+            
+            
+# =========================================
+# Chat Sessions & History - Version 2
+# =========================================
+
+def create_chat_session(user_id, document_id, title=None):
+
+    conn = None
+
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        query = """
+        INSERT INTO chat_sessions
+        (user_id, document_id, title)
+        VALUES (%s, %s, %s)
+        """
+
+        cursor.execute(
+            query,
+            (user_id, document_id, title)
+        )
+
+        conn.commit()
+
+        session_id = cursor.lastrowid
+
+        logger.info(
+            f"Chat session created: {session_id}"
+        )
+
+        return session_id
+
+    except Exception as e:
+
+        logger.error(
+            f"Error creating chat session: {e}"
+        )
+
+        raise
+
+    finally:
+
+        if conn:
+            conn.close()
+
+
+def get_chat_sessions(user_id, document_id):
+
+    conn = None
+
+    try:
+
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        query = """
+        SELECT
+            id,
+            user_id,
+            document_id,
+            title,
+            created_at,
+            updated_at
+        FROM chat_sessions
+        WHERE user_id = %s
+        AND document_id = %s
+        ORDER BY updated_at DESC
+        """
+
+        cursor.execute(
+            query,
+            (user_id, document_id)
+        )
+
+        return cursor.fetchall()
+
+    except Exception as e:
+
+        logger.error(
+            f"Error fetching chat sessions: {e}"
+        )
+
+        raise
+
+    finally:
+
+        if conn:
+            conn.close()
+
+
+def get_chat_session(session_id, user_id):
+
+    conn = None
+
+    try:
+
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        query = """
+        SELECT
+            id,
+            user_id,
+            document_id,
+            title,
+            created_at,
+            updated_at
+        FROM chat_sessions
+        WHERE id = %s
+        AND user_id = %s
+        """
+
+        cursor.execute(
+            query,
+            (session_id, user_id)
+        )
+
+        return cursor.fetchone()
+
+    except Exception as e:
+
+        logger.error(
+            f"Error fetching chat session: {e}"
+        )
+
+        raise
+
+    finally:
+
+        if conn:
+            conn.close()
+
+
+def insert_chat_message(
+    session_id,
+    question,
+    answer,
+    processing_time,
+    sources
+):
+
+    conn = None
+
+    try:
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        query = """
+        INSERT INTO chat_messages
+        (
+            session_id,
+            question,
+            answer,
+            processing_time,
+            sources
+        )
+        VALUES (%s, %s, %s, %s, %s)
+        """
+
+        cursor.execute(
+            query,
+            (
+                session_id,
+                question,
+                answer,
+                processing_time,
+                json.dumps(sources)
+            )
+        )
+
+        conn.commit()
+
+        message_id = cursor.lastrowid
+
+        logger.info(
+            f"Chat message saved: {message_id}"
+        )
+
+        return message_id
+
+    except Exception as e:
+
+        logger.error(
+            f"Error inserting chat message: {e}"
+        )
+
+        raise
+
+    finally:
+
+        if conn:
+            conn.close()
+
+
+def get_chat_messages(session_id):
+
+    conn = None
+
+    try:
+
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        query = """
+        SELECT
+            id,
+            session_id,
+            question,
+            answer,
+            processing_time,
+            sources,
+            created_at
+        FROM chat_messages
+        WHERE session_id = %s
+        ORDER BY created_at ASC
+        """
+
+        cursor.execute(
+            query,
+            (session_id,)
+        )
+
+        messages = cursor.fetchall()
+
+        for message in messages:
+
+            if message["sources"]:
+
+                message["sources"] = json.loads(
+                    message["sources"]
+                )
+
+            else:
+
+                message["sources"] = []
+
+        return messages
+
+    except Exception as e:
+
+        logger.error(
+            f"Error fetching chat messages: {e}"
+        )
+
+        raise
+
+    finally:
+
+        if conn:
+            conn.close()
