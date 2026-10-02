@@ -6,9 +6,17 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
+# =========================================
+# Documents
+# =========================================
+
 def insert_document(user_id, filename, file_hash, upload_time):
+
     conn = None
+
     try:
+
         conn = get_connection()
         cursor = conn.cursor()
 
@@ -20,7 +28,12 @@ def insert_document(user_id, filename, file_hash, upload_time):
 
         cursor.execute(
             query,
-            (user_id, filename, file_hash, upload_time)
+            (
+                user_id,
+                filename,
+                file_hash,
+                upload_time
+            )
         )
 
         conn.commit()
@@ -30,49 +43,87 @@ def insert_document(user_id, filename, file_hash, upload_time):
         return document_id
 
     except Exception as e:
-        logger.info(f"Error inserting document: {e}")
+
+        logger.info(
+            f"Error inserting document: {e}"
+        )
+
         raise
 
     finally:
+
         if conn:
             conn.close()
-            
-def insert_chunks(document_id,chunks,embeddings):
+
+
+def insert_chunks(document_id, chunks, embeddings):
+
     conn = None
+
     try:
+
         conn = get_connection()
         cursor = conn.cursor()
+
         query = """
         INSERT INTO chunks
-        (document_id,chunk_id,chunk_text,embedding)
-        VALUES (%s,%s,%s,%s)
+        (document_id, chunk_id, chunk_text, embedding)
+        VALUES (%s, %s, %s, %s)
         """
-        for idx, (chunk,embedding) in enumerate (zip (chunks,embeddings)):
-            cursor.execute(query,(document_id,idx,chunk,json.dumps (embedding.tolist())))
+
+        for idx, (chunk, embedding) in enumerate(
+            zip(chunks, embeddings)
+        ):
+
+            cursor.execute(
+                query,
+                (
+                    document_id,
+                    idx,
+                    chunk,
+                    json.dumps(
+                        embedding.tolist()
+                    )
+                )
+            )
+
         conn.commit()
+
         logger.info(
-            f"{len(chunks)} chunks inserted successfully" )
+            f"{len(chunks)} chunks inserted successfully"
+        )
+
     except Exception as e:
-        logger.info(f"Error inserting chunks: {e}")
+
+        logger.info(
+            f"Error inserting chunks: {e}"
+        )
+
         raise
+
     finally:
+
         if conn:
             conn.close()
-            
-            
+
+
 def get_documents(user_id):
 
     conn = None
 
     try:
+
         conn = get_connection()
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor(
+            dictionary=True
+        )
 
         query = """
-        SELECT *
-        FROM documents
-        WHERE user_id = %s
-        """
+            SELECT *
+            FROM documents
+            WHERE user_id = %s
+            ORDER BY upload_time DESC, id DESC
+            """
 
         cursor.execute(
             query,
@@ -85,44 +136,71 @@ def get_documents(user_id):
 
         for document in documents:
 
-            documents_list.append({
-                "id": document["id"],
-                "filename": document["filename"]
-            })
+            documents_list.append(
+                {
+                    "id": document["id"],
+                    "filename": document["filename"]
+                }
+            )
 
         return documents_list
 
     except Exception as e:
 
-        logger.info(f"Error Fetching documents: {e}")
+        logger.info(
+            f"Error Fetching documents: {e}"
+        )
+
         raise
 
     finally:
 
         if conn:
             conn.close()
-            
+
+
 def get_all_chunks():
+
     conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    query = """SELECT *FROM chunks ORDER BY id """
+
+    cursor = conn.cursor(
+        dictionary=True
+    )
+
+    query = """
+    SELECT *
+    FROM chunks
+    ORDER BY id
+    """
+
     cursor.execute(query)
+
     rows = cursor.fetchall()
+
     chunks = []
+
     for row in rows:
-        chunks.append({
-            "chunk": row["chunk_text"],
-            "chunk_id": row["chunk_id"],
-            "document_id": row["document_id"]
-        })
+
+        chunks.append(
+            {
+                "chunk": row["chunk_text"],
+                "chunk_id": row["chunk_id"],
+                "document_id": row["document_id"]
+            }
+        )
+
     conn.close()
+
     return chunks
+
 
 def get_all_embeddings():
 
     conn = get_connection()
 
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(
+        dictionary=True
+    )
 
     query = """
     SELECT embedding
@@ -149,11 +227,14 @@ def get_all_embeddings():
 
     return embeddings
 
+
 def get_document_by_hash(user_id, file_hash):
 
     conn = get_connection()
 
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(
+        dictionary=True
+    )
 
     query = """
     SELECT *
@@ -164,7 +245,10 @@ def get_document_by_hash(user_id, file_hash):
 
     cursor.execute(
         query,
-        (user_id, file_hash)
+        (
+            user_id,
+            file_hash
+        )
     )
 
     document = cursor.fetchone()
@@ -173,11 +257,14 @@ def get_document_by_hash(user_id, file_hash):
 
     return document
 
+
 def get_document_by_filename(user_id, filename):
 
     conn = get_connection()
 
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(
+        dictionary=True
+    )
 
     query = """
     SELECT *
@@ -188,7 +275,10 @@ def get_document_by_filename(user_id, filename):
 
     cursor.execute(
         query,
-        (user_id, filename)
+        (
+            user_id,
+            filename
+        )
     )
 
     document = cursor.fetchone()
@@ -202,7 +292,9 @@ def get_expired_documents(days=30):
 
     conn = get_connection()
 
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(
+        dictionary=True
+    )
 
     query = """
     SELECT *
@@ -210,27 +302,43 @@ def get_expired_documents(days=30):
     WHERE upload_time < NOW() - INTERVAL %s DAY
     """
 
-    cursor.execute(query, (days,))
+    cursor.execute(
+        query,
+        (days,)
+    )
+
     documents = cursor.fetchall()
+
     conn.close()
+
     return documents
 
 
 def delete_document_by_id(document_id):
+
     conn = get_connection()
+
     cursor = conn.cursor()
+
     cursor.execute(
         "DELETE FROM chunks WHERE document_id = %s",
-        (document_id,))
+        (document_id,)
+    )
+
     cursor.execute(
         "DELETE FROM documents WHERE id = %s",
-        (document_id,))
+        (document_id,)
+    )
+
     conn.commit()
+
     conn.close()
-    
+
+
 def has_documents(user_id):
 
     conn = get_connection()
+
     cursor = conn.cursor()
 
     query = """
@@ -251,10 +359,16 @@ def has_documents(user_id):
     conn.close()
 
     return bool(result[0])
-# clear active document
+
+
+# =========================================
+# Active Document
+# =========================================
+
 def clear_active_document(user_id):
 
     conn = get_connection()
+
     cursor = conn.cursor()
 
     query = """
@@ -269,11 +383,14 @@ def clear_active_document(user_id):
     )
 
     conn.commit()
+
     conn.close()
-    
-# set active document
+
+
 def set_active_document(document_id):
+
     conn = get_connection()
+
     cursor = conn.cursor()
 
     query = """
@@ -282,16 +399,23 @@ def set_active_document(document_id):
     WHERE id = %s
     """
 
-    cursor.execute(query, (document_id,))
+    cursor.execute(
+        query,
+        (document_id,)
+    )
 
     conn.commit()
+
     conn.close()
-    
-# get active document
+
+
 def get_active_document(user_id):
 
     conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
+
+    cursor = conn.cursor(
+        dictionary=True
+    )
 
     query = """
     SELECT *
@@ -312,51 +436,83 @@ def get_active_document(user_id):
 
     return document
 
-def get_active_chunks(user_id):
 
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
+def get_active_chunks(user_id, document_id):
 
-    query = """
-    SELECT
-        c.chunk_text,
-        c.chunk_id,
-        c.document_id
-    FROM chunks c
-    JOIN documents d
-        ON c.document_id = d.id
-    WHERE d.is_active = TRUE
-    AND d.user_id = %s
-    ORDER BY c.id
-    """
-
-    cursor.execute(
-        query,
-        (user_id,)
-    )
-
-    rows = cursor.fetchall()
-
-    conn.close()
-
-    chunks = []
-
-    for row in rows:
-
-        chunks.append({
-            "chunk": row["chunk_text"],
-            "chunk_id": row["chunk_id"],
-            "document_id": row["document_id"]
-        })
-
-    return chunks           
-
-
-# version 2 start -- authentication 
-
-def create_user(name, email, password_hash):
     conn = None
+
     try:
+
+        conn = get_connection()
+
+        cursor = conn.cursor(
+            dictionary=True
+        )
+
+        query = """
+        SELECT
+            c.chunk_text,
+            c.chunk_id,
+            c.document_id
+        FROM chunks c
+        JOIN documents d
+            ON c.document_id = d.id
+        WHERE c.document_id = %s
+        AND d.user_id = %s
+        AND d.is_active = TRUE
+        ORDER BY c.id
+        """
+
+        cursor.execute(
+            query,
+            (
+                document_id,
+                user_id
+            )
+        )
+
+        rows = cursor.fetchall()
+
+        chunks = []
+
+        for row in rows:
+
+            chunks.append(
+                {
+                    "chunk": row["chunk_text"],
+                    "chunk_id": row["chunk_id"],
+                    "document_id": row["document_id"]
+                }
+            )
+
+        return chunks
+
+    except Exception as e:
+
+        logger.error(
+            f"Error fetching active chunks: {e}"
+        )
+
+        raise
+
+    finally:
+
+        if conn:
+            conn.close()
+# =========================================
+# Version 2 - Authentication
+# =========================================
+
+def create_user(
+    name,
+    email,
+    password_hash
+):
+
+    conn = None
+
+    try:
+
         conn = get_connection()
         cursor = conn.cursor()
 
@@ -368,7 +524,11 @@ def create_user(name, email, password_hash):
 
         cursor.execute(
             query,
-            (name, email, password_hash)
+            (
+                name,
+                email,
+                password_hash
+            )
         )
 
         conn.commit()
@@ -378,19 +538,29 @@ def create_user(name, email, password_hash):
         return user_id
 
     except Exception as e:
-        logger.error(f"Error creating user: {e}")
+
+        logger.error(
+            f"Error creating user: {e}"
+        )
+
         raise
 
     finally:
+
         if conn:
             conn.close()
 
 
 def get_user_by_email(email):
+
     conn = None
+
     try:
+
         conn = get_connection()
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor(
+            dictionary=True
+        )
 
         query = """
         SELECT *
@@ -398,31 +568,43 @@ def get_user_by_email(email):
         WHERE email = %s
         """
 
-        cursor.execute(query, (email,))
+        cursor.execute(
+            query,
+            (email,)
+        )
 
         user = cursor.fetchone()
 
         return user
 
     except Exception as e:
-        logger.error(f"Error fetching user: {e}")
+
+        logger.error(
+            f"Error fetching user: {e}"
+        )
+
         raise
 
     finally:
+
         if conn:
             conn.close()
-            
-            
-            
+
+
 # =========================================
 # Chat Sessions & History - Version 2
 # =========================================
 
-def create_chat_session(user_id, document_id, title=None):
+def create_chat_session(
+    user_id,
+    document_id,
+    title=None
+):
 
     conn = None
 
     try:
+
         conn = get_connection()
         cursor = conn.cursor()
 
@@ -434,7 +616,11 @@ def create_chat_session(user_id, document_id, title=None):
 
         cursor.execute(
             query,
-            (user_id, document_id, title)
+            (
+                user_id,
+                document_id,
+                title
+            )
         )
 
         conn.commit()
@@ -461,14 +647,19 @@ def create_chat_session(user_id, document_id, title=None):
             conn.close()
 
 
-def get_chat_sessions(user_id, document_id):
+def get_chat_sessions(
+    user_id,
+    document_id
+):
 
     conn = None
 
     try:
 
         conn = get_connection()
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor(
+            dictionary=True
+        )
 
         query = """
         SELECT
@@ -486,7 +677,10 @@ def get_chat_sessions(user_id, document_id):
 
         cursor.execute(
             query,
-            (user_id, document_id)
+            (
+                user_id,
+                document_id
+            )
         )
 
         return cursor.fetchall()
@@ -505,14 +699,19 @@ def get_chat_sessions(user_id, document_id):
             conn.close()
 
 
-def get_chat_session(session_id, user_id):
+def get_chat_session(
+    session_id,
+    user_id
+):
 
     conn = None
 
     try:
 
         conn = get_connection()
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor(
+            dictionary=True
+        )
 
         query = """
         SELECT
@@ -529,7 +728,10 @@ def get_chat_session(session_id, user_id):
 
         cursor.execute(
             query,
-            (session_id, user_id)
+            (
+                session_id,
+                user_id
+            )
         )
 
         return cursor.fetchone()
@@ -617,21 +819,22 @@ def get_chat_messages(session_id):
     try:
 
         conn = get_connection()
-        cursor = conn.cursor(dictionary=True)
-
+        cursor = conn.cursor(
+            dictionary=True
+        )
         query = """
-        SELECT
-            id,
-            session_id,
-            question,
-            answer,
-            processing_time,
-            sources,
-            created_at
-        FROM chat_messages
-        WHERE session_id = %s
-        ORDER BY created_at ASC
-        """
+            SELECT
+                id,
+                session_id,
+                question,
+                answer,
+                processing_time,
+                sources,
+                created_at
+            FROM chat_messages
+            WHERE session_id = %s
+            ORDER BY created_at DESC, id DESC
+            """
 
         cursor.execute(
             query,
@@ -667,14 +870,20 @@ def get_chat_messages(session_id):
         if conn:
             conn.close()
 
-def get_chat_session_by_document(user_id, document_id):
+
+def get_chat_session_by_document(
+    user_id,
+    document_id
+):
 
     conn = None
 
     try:
 
         conn = get_connection()
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor(
+            dictionary=True
+        )
 
         query = """
         SELECT *
@@ -687,7 +896,10 @@ def get_chat_session_by_document(user_id, document_id):
 
         cursor.execute(
             query,
-            (user_id, document_id)
+            (
+                user_id,
+                document_id
+            )
         )
 
         return cursor.fetchone()
@@ -697,6 +909,123 @@ def get_chat_session_by_document(user_id, document_id):
         logger.error(
             f"Error fetching chat session by document: {e}"
         )
+
+        raise
+
+    finally:
+
+        if conn:
+            conn.close()
+
+
+# =========================================
+# Get Document By ID
+# =========================================
+def get_document_by_id(
+    document_id,
+    user_id
+):
+
+    conn = None
+
+    try:
+
+        conn = get_connection()
+
+        cursor = conn.cursor(
+            dictionary=True
+        )
+
+        query = """
+        SELECT *
+        FROM documents
+        WHERE id = %s
+        AND user_id = %s
+        """
+
+        cursor.execute(
+            query,
+            (
+                document_id,
+                user_id
+            )
+        )
+
+        return cursor.fetchone()
+
+    except Exception as e:
+
+        logger.error(
+            f"Error fetching document by ID: {e}"
+        )
+
+        raise
+
+    finally:
+
+        if conn:
+            conn.close()
+# =========================================
+# Get Chunks By Document ID
+# =========================================
+def get_chunks_by_document_id(
+    document_id,
+    user_id
+):
+
+    conn = None
+
+    try:
+
+        conn = get_connection()
+
+        cursor = conn.cursor(
+            dictionary=True
+        )
+
+        query = """
+        SELECT
+            c.chunk_text,
+            c.chunk_id,
+            c.document_id
+        FROM chunks c
+        JOIN documents d
+            ON c.document_id = d.id
+        WHERE c.document_id = %s
+        AND d.user_id = %s
+        ORDER BY c.id
+        """
+
+        cursor.execute(
+            query,
+            (
+                document_id,
+                user_id
+            )
+        )
+
+        rows = cursor.fetchall()
+
+        chunks = []
+
+        for row in rows:
+
+            chunks.append(
+                {
+                    "chunk": row["chunk_text"],
+                    "chunk_id": row["chunk_id"],
+                    "document_id": row["document_id"]
+                }
+            )
+
+        return chunks
+
+    except Exception as e:
+
+        logger.error(
+            f"Error fetching chunks by document ID: {e}"
+        )
+
         raise
 
     finally:

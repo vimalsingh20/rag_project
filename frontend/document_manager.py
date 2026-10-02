@@ -5,7 +5,8 @@ from frontend.api_client import (
     get_document,
     delete_document,
     upload_document,
-    get_chat_sessions
+    get_chat_sessions,
+    create_chat_session
 )
 
 
@@ -16,6 +17,7 @@ from frontend.api_client import (
 def clear_pdf_viewer():
 
     st.session_state["viewed_pdf"] = None
+
     st.session_state["viewed_filename"] = None
 
 
@@ -157,6 +159,92 @@ def set_active_document(doc):
 
 
 # =========================================================
+# NEW CHAT
+# =========================================================
+
+def create_new_chat():
+
+    document_id = st.session_state.get(
+        "active_document_id"
+    )
+
+    if not document_id:
+
+        st.sidebar.warning(
+            "Please select a PDF first."
+        )
+
+        return
+
+    try:
+
+        data = create_chat_session(
+            document_id
+        )
+
+        if not data.get(
+            "success",
+            False
+        ):
+
+            st.sidebar.error(
+                data.get(
+                    "message",
+                    "Unable to create new chat."
+                )
+            )
+
+            return
+
+        session_id = (
+            data.get("session_id")
+            or data.get("id")
+        )
+
+        if not session_id:
+
+            st.sidebar.error(
+                "Chat session was not created."
+            )
+
+            return
+
+        # -----------------------------------------
+        # Set new session
+        # -----------------------------------------
+
+        st.session_state[
+            "active_session_id"
+        ] = session_id
+
+        # -----------------------------------------
+        # Clear old chat
+        # -----------------------------------------
+
+        st.session_state[
+            "chat_history"
+        ] = []
+
+        st.session_state[
+            "history_loaded_for"
+        ] = None
+
+        # -----------------------------------------
+        # Hide PDF viewer
+        # -----------------------------------------
+
+        clear_pdf_viewer()
+
+        st.rerun()
+
+    except Exception as e:
+
+        st.sidebar.error(
+            f"Unable to create new chat: {e}"
+        )
+
+
+# =========================================================
 # LOAD PDF FOR VIEW
 # =========================================================
 
@@ -180,7 +268,7 @@ def load_pdf_for_view(doc):
         response.raise_for_status()
 
         # -----------------------------------------
-        # Remove previous PDF first
+        # Remove previous PDF
         # -----------------------------------------
 
         clear_pdf_viewer()
@@ -209,7 +297,6 @@ def load_pdf_for_view(doc):
 # =========================================================
 # DOCUMENT MANAGER
 # =========================================================
-
 def show_document_manager():
 
     st.sidebar.header(
@@ -217,8 +304,24 @@ def show_document_manager():
     )
 
     # =====================================================
-    # SELECT PDF
+    # TOP ACTIONS
     # =====================================================
+
+    # -----------------------------------------------------
+    # NEW CHAT
+    # -----------------------------------------------------
+
+    if st.sidebar.button(
+        "➕ New Chat",
+        key="new_chat_button",
+        use_container_width=True
+    ):
+
+        create_new_chat()
+
+    # -----------------------------------------------------
+    # UPLOAD PDF
+    # -----------------------------------------------------
 
     uploaded_file = st.sidebar.file_uploader(
         "Upload PDF",
@@ -226,13 +329,10 @@ def show_document_manager():
         key="pdf_uploader"
     )
 
-    # =====================================================
-    # UPLOAD BUTTON
-    # =====================================================
-
     if st.sidebar.button(
-        "Upload PDF",
-        key="upload_pdf_button"
+        "📤 Upload PDF",
+        key="upload_pdf_button",
+        use_container_width=True
     ):
 
         if uploaded_file is None:
@@ -253,9 +353,9 @@ def show_document_manager():
                         uploaded_file
                     )
 
-                # =================================================
+                # =============================================
                 # UPLOAD SUCCESS
-                # =================================================
+                # =============================================
 
                 if data.get(
                     "success",
@@ -269,10 +369,9 @@ def show_document_manager():
                         )
                     )
 
-                    # =============================================
-                    # IMPORTANT:
-                    # Uploaded document becomes ACTIVE for CHAT
-                    # =============================================
+                    # -----------------------------------------
+                    # Uploaded document becomes active
+                    # -----------------------------------------
 
                     st.session_state[
                         "active_document_id"
@@ -293,9 +392,9 @@ def show_document_manager():
                         "session_id"
                     )
 
-                    # =============================================
+                    # -----------------------------------------
                     # Reset chat history
-                    # =============================================
+                    # -----------------------------------------
 
                     st.session_state[
                         "chat_history"
@@ -305,10 +404,9 @@ def show_document_manager():
                         "history_loaded_for"
                     ] = None
 
-                    # =============================================
-                    # IMPORTANT:
-                    # DO NOT automatically open PDF
-                    # =============================================
+                    # -----------------------------------------
+                    # Do not automatically open PDF
+                    # -----------------------------------------
 
                     clear_pdf_viewer()
 
@@ -329,6 +427,10 @@ def show_document_manager():
                     f"Unable to upload PDF: {e}"
                 )
 
+    # =====================================================
+    # SEPARATOR
+    # =====================================================
+
     st.sidebar.markdown("---")
 
     # =====================================================
@@ -345,6 +447,19 @@ def show_document_manager():
 
         documents = normalize_documents(
             documents_data
+        )
+
+        # =============================================
+        # LATEST UPLOADED DOCUMENT FIRST
+        # =============================================
+
+        documents.sort(
+            key=lambda doc: int(
+                doc.get("id")
+                or doc.get("document_id")
+                or 0
+            ),
+            reverse=True
         )
 
     except Exception:
@@ -432,7 +547,7 @@ def show_document_manager():
                 )
 
                 # -----------------------------------------
-                # Chat mode should hide PDF
+                # Hide PDF viewer
                 # -----------------------------------------
 
                 clear_pdf_viewer()
@@ -459,7 +574,7 @@ def show_document_manager():
                 )
 
                 # -----------------------------------------
-                # Open ONLY when View is clicked
+                # Open PDF
                 # -----------------------------------------
 
                 success = load_pdf_for_view(
@@ -581,7 +696,6 @@ def show_document_manager():
                     ] = False
 
                     st.rerun()
-
 
 # =========================================================
 # PDF VIEWER

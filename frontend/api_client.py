@@ -193,3 +193,18 @@ def ask_question(question, session_id):
     response.raise_for_status()
 
     return response.json()
+
+def create_chat_session(document_id):
+
+    response = requests.post(
+        f"{BASE_URL}/chat/sessions",
+        params={
+            "document_id": document_id
+        },
+        headers=get_auth_headers(),
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    return response.json()

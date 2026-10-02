@@ -44,7 +44,6 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-
 @router.post("/ask")
 def ask_question(
     request: QueryRequest,
@@ -54,6 +53,11 @@ def ask_question(
     try:
 
         user_id = current_user["user_id"]
+
+        # =========================================
+        # Get Chat Session
+        # =========================================
+
         session = get_chat_session(
             request.session_id,
             user_id
@@ -65,18 +69,58 @@ def ask_question(
                 "success": False,
                 "message": "Chat session not found."
             }
-        result = ask_rag(
-            request.question,
-            user_id
+
+        # =========================================
+        # Get Document From Session
+        # =========================================
+
+        document_id = session["document_id"]
+
+        logger.info(
+            f"Chat session | "
+            f"session_id={request.session_id} | "
+            f"document_id={document_id}"
         )
 
+        # =========================================
+        # Ask RAG About EXACT Document
+        # =========================================
+
+        result = ask_rag(
+            request.question,
+            user_id,
+            document_id
+        )
+
+        # =========================================
+        # Response Data
+        # =========================================
+
         result["success"] = True
-        result["question"] = request.question
-        result["session_id"] = request.session_id
+
+        result["question"] = (
+            request.question
+        )
+
+        result["session_id"] = (
+            request.session_id
+        )
+
+        result["document_id"] = (
+            document_id
+        )
+
+        # =========================================
+        # Save Chat Message
+        # =========================================
+
         insert_chat_message(
             session_id=request.session_id,
             question=request.question,
-            answer=result.get("answer", ""),
+            answer=result.get(
+                "answer",
+                ""
+            ),
             processing_time=result.get(
                 "processing_time",
                 0
@@ -112,7 +156,6 @@ def ask_question(
 
             "sources": []
         }
-        
 @router.post("/upload")
 def upload_pdf(
     file: UploadFile = File(...),
@@ -506,4 +549,68 @@ def get_chat_history(
             "success": False,
             "message": "Unable to load chat history.",
             "messages": []
+        }
+        
+# =========================================================
+# CREATE NEW CHAT SESSION
+# =========================================================
+
+@router.post("/chat/sessions")
+def create_new_chat_session(
+    document_id: int,
+    current_user=Depends(get_current_user)
+):
+
+    try:
+
+        user_id = current_user["user_id"]
+
+        # =========================================
+        # Verify document belongs to user
+        # =========================================
+
+        document = get_documents(user_id)
+
+        document_exists = any(
+            (
+                doc.get("id")
+                or doc.get("document_id")
+            ) == document_id
+            for doc in document
+        )
+
+        if not document_exists:
+
+            return {
+                "success": False,
+                "message": "Document not found."
+            }
+
+        # =========================================
+        # Create new chat session
+        # =========================================
+
+        session_id = create_chat_session(
+            user_id=user_id,
+            document_id=document_id,
+            title="New Chat"
+        )
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "document_id": document_id,
+            "message": "New chat created successfully."
+        }
+
+    except Exception as e:
+
+        logger.error(
+            f"Error creating chat session: {e}"
+        )
+
+        return {
+            "success": False,
+            "message": "Unable to create new chat.",
+            "error": str(e)
         }
