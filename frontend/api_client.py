@@ -110,6 +110,7 @@ def get_documents():
 
     return response.json()
 
+
 def get_document(filename):
 
     response = requests.get(
@@ -138,19 +139,52 @@ def delete_document(filename):
 
 def get_document_url(filename):
 
-    return f"{BASE_URL}/document/{filename}"
+    return (
+        f"{BASE_URL}/document/{filename}"
+    )
+
+
+# =========================================
+# Chat Session APIs
+# =========================================
+
+def get_chat_sessions(document_id):
+
+    response = requests.get(
+        f"{BASE_URL}/chat/sessions/{document_id}",
+        headers=get_auth_headers(),
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    return response.json()
+
+
+def get_chat_history(session_id):
+
+    response = requests.get(
+        f"{BASE_URL}/chat/history/{session_id}",
+        headers=get_auth_headers(),
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    return response.json()
 
 
 # =========================================
 # RAG / Ask API
 # =========================================
 
-def ask_question(question):
+def ask_question(question, session_id):
 
     response = requests.post(
         f"{BASE_URL}/ask",
         json={
-            "question": question
+            "question": question,
+            "session_id": session_id
         },
         headers=get_auth_headers(),
         timeout=60

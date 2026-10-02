@@ -70,7 +70,8 @@ def login_user(request: LoginRequest):
     "email": user["email"],
     "access_token": access_token,
     "refresh_token": refresh_token}
-    
+
+
 @router.post("/refresh")
 def refresh_access_token(request: RefreshTokenRequest):
 
@@ -79,24 +80,48 @@ def refresh_access_token(request: RefreshTokenRequest):
     )
 
     if payload is None:
+
         raise HTTPException(
             status_code=401,
             detail="Invalid or expired refresh token"
         )
 
-    if payload["token_type"] != "refresh":
+    if payload.get("token_type") != "refresh":
+
         raise HTTPException(
             status_code=401,
             detail="Invalid refresh token"
         )
 
-    new_access_token = create_access_token(
-        payload["user_id"],
+    user = get_user_by_email(
         payload["email"]
     )
 
+    if user is None:
+
+        raise HTTPException(
+            status_code=401,
+            detail="User not found"
+        )
+
+    new_access_token = create_access_token(
+        user["id"],
+        user["email"]
+    )
+
     return {
+
         "success": True,
-        "message": "Access token refreshed successfully",
+
+        "message": (
+            "Access token refreshed successfully"
+        ),
+
+        "user_id": user["id"],
+
+        "name": user["name"],
+
+        "email": user["email"],
+
         "access_token": new_access_token
     }

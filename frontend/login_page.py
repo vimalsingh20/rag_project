@@ -1,9 +1,18 @@
 import streamlit as st
 
+from streamlit_cookies_controller import CookieController
+
 from frontend.api_client import (
     login_user,
     register_user
 )
+
+
+# =========================================
+# Cookie Controller
+# =========================================
+
+cookie_controller = CookieController()
 
 
 # =========================================
@@ -49,17 +58,32 @@ def show_login_page():
 
             if data.get("success"):
 
-                # -----------------------------
-                # Store authentication data
-                # -----------------------------
+                # =================================
+                # Store Access Token
+                # =================================
 
                 st.session_state.access_token = (
                     data["access_token"]
                 )
 
+                # =================================
+                # Store Refresh Token
+                # Persist in browser cookie
+                # =================================
+
                 st.session_state.refresh_token = (
                     data["refresh_token"]
                 )
+
+                cookie_controller.set(
+                    "refresh_token",
+                    data["refresh_token"],
+                    max_age=15 * 24 * 60 * 60
+                )
+
+                # =================================
+                # Store User Information
+                # =================================
 
                 st.session_state.user_id = (
                     data["user_id"]
@@ -73,8 +97,16 @@ def show_login_page():
                     data["email"]
                 )
 
-                # Clear old chat
+                # =================================
+                # Clear old chat state
+                # =================================
+
                 st.session_state.chat_history = []
+
+                st.session_state.active_session_id = None
+                st.session_state.active_document_id = None
+                st.session_state.active_document_filename = None
+                st.session_state.history_loaded_for = None
 
                 st.success(
                     "Login successful."
@@ -166,7 +198,6 @@ def show_register_page():
                     "Please login."
                 )
 
-                # Go back to login
                 st.session_state.show_register = False
 
                 st.rerun()
@@ -182,12 +213,12 @@ def show_register_page():
 
         except Exception as e:
 
-            # Backend already sends 400
-            # when email is already registered
-
             try:
 
-                if hasattr(e, "response") and e.response is not None:
+                if (
+                    hasattr(e, "response")
+                    and e.response is not None
+                ):
 
                     error_data = e.response.json()
 

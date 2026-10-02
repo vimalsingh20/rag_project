@@ -666,3 +666,40 @@ def get_chat_messages(session_id):
 
         if conn:
             conn.close()
+
+def get_chat_session_by_document(user_id, document_id):
+
+    conn = None
+
+    try:
+
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        query = """
+        SELECT *
+        FROM chat_sessions
+        WHERE user_id = %s
+        AND document_id = %s
+        ORDER BY created_at ASC
+        LIMIT 1
+        """
+
+        cursor.execute(
+            query,
+            (user_id, document_id)
+        )
+
+        return cursor.fetchone()
+
+    except Exception as e:
+
+        logger.error(
+            f"Error fetching chat session by document: {e}"
+        )
+        raise
+
+    finally:
+
+        if conn:
+            conn.close()
