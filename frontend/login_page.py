@@ -1,7 +1,5 @@
 import streamlit as st
 
-from streamlit_cookies_controller import CookieController
-
 from frontend.api_client import (
     login_user,
     register_user
@@ -9,17 +7,10 @@ from frontend.api_client import (
 
 
 # =========================================
-# Cookie Controller
-# =========================================
-
-cookie_controller = CookieController()
-
-
-# =========================================
 # Login Page
 # =========================================
 
-def show_login_page():
+def show_login_page(cookies):
 
     st.title("RAG PDF Chatbot")
 
@@ -59,7 +50,7 @@ def show_login_page():
             if data.get("success"):
 
                 # =================================
-                # Store Access Token
+                # Access Token
                 # =================================
 
                 st.session_state.access_token = (
@@ -67,22 +58,21 @@ def show_login_page():
                 )
 
                 # =================================
-                # Store Refresh Token
-                # Persist in browser cookie
+                # Refresh Token
                 # =================================
+
+                refresh_token = data["refresh_token"]
 
                 st.session_state.refresh_token = (
-                    data["refresh_token"]
+                    refresh_token
                 )
 
-                cookie_controller.set(
-                    "refresh_token",
-                    data["refresh_token"],
-                    max_age=15 * 24 * 60 * 60
-                )
+                # Save refresh token in browser cookie
+                cookies["refresh_token"] = refresh_token
+                cookies.save()
 
                 # =================================
-                # Store User Information
+                # User Information
                 # =================================
 
                 st.session_state.user_id = (
@@ -98,15 +88,22 @@ def show_login_page():
                 )
 
                 # =================================
-                # Clear old chat state
+                # Clear Old Chat State
                 # =================================
 
                 st.session_state.chat_history = []
 
                 st.session_state.active_session_id = None
+
                 st.session_state.active_document_id = None
+
                 st.session_state.active_document_filename = None
+
                 st.session_state.history_loaded_for = None
+
+                # =================================
+                # Login Success
+                # =================================
 
                 st.success(
                     "Login successful."
@@ -167,6 +164,10 @@ def show_register_page():
         use_container_width=True
     ):
 
+        # =========================================
+        # Validate Fields
+        # =========================================
+
         if not name or not email or not password:
 
             st.warning(
@@ -182,6 +183,10 @@ def show_register_page():
             )
 
             return
+
+        # =========================================
+        # Register User
+        # =========================================
 
         try:
 
@@ -212,6 +217,10 @@ def show_register_page():
                 )
 
         except Exception as e:
+
+            # =========================================
+            # Backend Error
+            # =========================================
 
             try:
 

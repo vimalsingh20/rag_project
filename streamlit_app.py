@@ -1,4 +1,7 @@
+import os
 import streamlit as st
+
+from streamlit_cookies_manager import EncryptedCookieManager
 
 from frontend.login_page import (
     show_login_page,
@@ -14,6 +17,10 @@ from frontend.chat_interface import (
     show_chat_interface
 )
 
+from frontend.api_client import (
+    refresh_access_token
+)
+
 
 # =========================================
 # Page Configuration
@@ -23,6 +30,24 @@ st.set_page_config(
     page_title="RAG PDF Chatbot",
     layout="wide"
 )
+
+
+# =========================================
+# Cookie Manager
+# =========================================
+
+cookies = EncryptedCookieManager(
+
+    prefix="rag_pdf_chatbot/",
+
+    password=os.getenv(
+        "COOKIES_PASSWORD",
+        "rag-pdf-chatbot-development-secret"
+    )
+)
+
+if not cookies.ready():
+    st.stop()
 
 
 # =========================================
@@ -69,14 +94,62 @@ if "show_register" not in st.session_state:
 
 
 # =========================================
-# Authentication Check
+# Restore Login After Browser Refresh
 # =========================================
 
 if not st.session_state.access_token:
 
-    # =====================================
-    # Register Page
-    # =====================================
+    saved_refresh_token = cookies.get(
+        "refresh_token"
+    )
+
+    if saved_refresh_token:
+
+        try:
+
+            data = refresh_access_token(
+                saved_refresh_token
+            )
+
+            if data.get("success"):
+
+                st.session_state.access_token = (
+                    data["access_token"]
+                )
+
+                st.session_state.refresh_token = (
+                    saved_refresh_token
+                )
+
+                st.session_state.user_id = (
+                    data["user_id"]
+                )
+
+                st.session_state.user_name = (
+                    data["name"]
+                )
+
+                st.session_state.user_email = (
+                    data["email"]
+                )
+
+        except Exception:
+
+            cookies["refresh_token"] = ""
+            cookies.save()
+
+            st.session_state.access_token = None
+            st.session_state.refresh_token = None
+            st.session_state.user_id = None
+            st.session_state.user_name = None
+            st.session_state.user_email = None
+
+
+# =========================================
+# Authentication Check
+# =========================================
+
+if not st.session_state.access_token:
 
     if st.session_state.show_register:
 
@@ -92,13 +165,10 @@ if not st.session_state.access_token:
 
             st.rerun()
 
-    # =====================================
-    # Login Page
-    # =====================================
-
     else:
 
-        show_login_page()
+        # IMPORTANT
+        show_login_page(cookies)
 
         st.markdown("---")
 
@@ -116,10 +186,6 @@ if not st.session_state.access_token:
 # =========================================
 
 else:
-
-    # =====================================
-    # Header
-    # =====================================
 
     st.title(
         "RAG PDF Chatbot"
@@ -142,10 +208,11 @@ else:
         "Logout"
     ):
 
-        # ---------------------------------
-        # Authentication
-        # ---------------------------------
+        # Delete browser cookie
+        cookies["refresh_token"] = ""
+        cookies.save()
 
+        # Authentication
         st.session_state.access_token = None
         st.session_state.refresh_token = None
 
@@ -153,26 +220,15 @@ else:
         st.session_state.user_name = None
         st.session_state.user_email = None
 
-
-        # ---------------------------------
-        # Chat State
-        # ---------------------------------
-
+        # Chat
         st.session_state.chat_history = []
 
         st.session_state.active_document_id = None
-
         st.session_state.active_document_filename = None
-
         st.session_state.active_session_id = None
-
         st.session_state.history_loaded_for = None
 
-
-        # ---------------------------------
-        # PDF Viewer State
-        # ---------------------------------
-
+        # PDF viewer
         st.session_state.pop(
             "viewed_pdf",
             None
@@ -182,11 +238,6 @@ else:
             "viewed_filename",
             None
         )
-
-
-        # ---------------------------------
-        # Return To Login
-        # ---------------------------------
 
         st.rerun()
 
@@ -205,5 +256,8 @@ else:
     show_pdf_viewer()
 
 
+    # =====================================
+    # Chat Interface
+    # =====================================
 
     show_chat_interface()
