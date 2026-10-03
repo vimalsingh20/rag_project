@@ -1,16 +1,36 @@
-from fastapi import APIRouter, UploadFile, File
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    File,
+    Depends
+)
+
 from fastapi.responses import FileResponse
+
 from api.schemas import QueryRequest
 from api.rag_pipeline import ask_rag
+
 import shutil
 import os
+
+from pathlib import Path
+
 from datetime import datetime, timedelta
+
+from pypdf import PdfReader
+
 from ingestion.loader import load_pdf
 from ingestion.chunking import split_text
+
 from services.embedding import get_embedding
+
 from db.faiss_index import FaissIndex
 
-from config.settings import (UPLOAD_FOLDER,EMBEDDING_CACHE_FOLDER,CACHE_DAYS)
+from config.settings import (
+    UPLOAD_FOLDER,
+    EMBEDDING_CACHE_FOLDER,
+    CACHE_DAYS
+)
 
 from db.mysql_store import (
     insert_document,
@@ -28,21 +48,33 @@ from db.mysql_store import (
     insert_chat_message,
     get_chat_messages,
     get_chat_session_by_document
-
-
 )
 
-from fastapi import Depends
 from api.dependencies import get_current_user
 
 from utils.hashing import generate_file_hash
-
 from utils.logger import get_logger
 
 
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+# =========================================================
+# Upload Security Configuration
+# =========================================================
+
+MAX_PDF_SIZE = 10 * 1024 * 1024  # 10 MB
+
+ALLOWED_EXTENSION = ".pdf"
+
+ALLOWED_CONTENT_TYPE = "application/pdf"
+
+
+# =========================================================
+# ASK QUESTION
+# =========================================================
 
 @router.post("/ask")
 def ask_question(
@@ -156,6 +188,12 @@ def ask_question(
 
             "sources": []
         }
+
+
+# =========================================================
+# UPLOAD PDF
+# =========================================================
+
 @router.post("/upload")
 def upload_pdf(
     file: UploadFile = File(...),
@@ -164,15 +202,119 @@ def upload_pdf(
 
     try:
 
+        # =========================================
+        # User ID
+        # =========================================
+
         user_id = current_user["user_id"]
 
         # =========================================
-        # Save uploaded PDF
+        # Validate Filename
         # =========================================
 
-        file_path = f"{UPLOAD_FOLDER}/{file.filename}"
+        if not file.filename:
 
-        with open(file_path, "wb") as buffer:
+            return {
+                "success": False,
+                "message": "Filename is required."
+            }
+
+        original_filename = Path(
+            file.filename
+        ).name
+
+        # Prevent path traversal
+        if original_filename != file.filename:
+
+            return {
+                "success": False,
+                "message": "Invalid filename."
+            }
+
+        # =========================================
+        # Validate Extension
+        # =========================================
+
+        if not original_filename.lower().endswith(
+            ALLOWED_EXTENSION
+        ):
+
+            return {
+                "success": False,
+                "message": "Only PDF files are allowed."
+            }
+
+        # =========================================
+        # Validate Content Type
+        # =========================================
+
+        if file.content_type != ALLOWED_CONTENT_TYPE:
+
+            return {
+                "success": False,
+                "message": (
+                    "Invalid file type. "
+                    "Please upload a PDF."
+                )
+            }
+
+        # =========================================
+        # Validate File Size
+        # =========================================
+
+        file.file.seek(
+            0,
+            os.SEEK_END
+        )
+
+        file_size = file.file.tell()
+
+        file.file.seek(0)
+
+        if file_size == 0:
+
+            return {
+                "success": False,
+                "message": "The uploaded PDF is empty."
+            }
+
+        if file_size > MAX_PDF_SIZE:
+
+            return {
+                "success": False,
+                "message": (
+                    "File too large. "
+                    "Maximum allowed size is 10 MB."
+                )
+            }
+
+        # =========================================
+        # User-specific PDF Storage
+        # =========================================
+
+        user_upload_folder = os.path.join(
+            UPLOAD_FOLDER,
+            str(user_id)
+        )
+
+        os.makedirs(
+            user_upload_folder,
+            exist_ok=True
+        )
+
+        file_path = os.path.join(
+            user_upload_folder,
+            original_filename
+        )
+
+        # =========================================
+        # Save Uploaded PDF
+        # =========================================
+
+        with open(
+            file_path,
+            "wb"
+        ) as buffer:
 
             shutil.copyfileobj(
                 file.file,
@@ -180,7 +322,43 @@ def upload_pdf(
             )
 
         # =========================================
-        # Generate file hash
+        # Verify Actual PDF
+        # =========================================
+
+        try:
+
+            reader = PdfReader(
+                file_path
+            )
+
+            if len(reader.pages) == 0:
+
+                os.remove(file_path)
+
+                return {
+                    "success": False,
+                    "message": "PDF contains no pages."
+                }
+
+        except Exception as pdf_error:
+
+            logger.warning(
+                f"Invalid PDF uploaded: {pdf_error}"
+            )
+
+            if os.path.exists(file_path):
+
+                os.remove(file_path)
+
+            return {
+                "success": False,
+                "message": (
+                    "Invalid or corrupted PDF file."
+                )
+            }
+
+        # =========================================
+        # Generate File Hash
         # =========================================
 
         file_hash = generate_file_hash(
@@ -188,7 +366,7 @@ def upload_pdf(
         )
 
         # =========================================
-        # Check existing document for this user
+        # Check Existing Document For User
         # =========================================
 
         document = get_document_by_hash(
@@ -211,27 +389,39 @@ def upload_pdf(
 
                 document_id = document["id"]
 
-                # Find existing chat session
+                # -----------------------------------------
+                # Find Existing Chat Session
+                # -----------------------------------------
+
                 session = get_chat_session_by_document(
                     user_id=user_id,
                     document_id=document_id
                 )
 
-                # Reuse existing session
+                # -----------------------------------------
+                # Reuse Existing Session
+                # -----------------------------------------
+
                 if session:
 
                     session_id = session["id"]
 
-                # Safety fallback
+                # -----------------------------------------
+                # Safety Fallback
+                # -----------------------------------------
+
                 else:
 
                     session_id = create_chat_session(
                         user_id=user_id,
                         document_id=document_id,
-                        title=file.filename
+                        title=original_filename
                     )
 
-                # Make this document active
+                # -----------------------------------------
+                # Make Document Active
+                # -----------------------------------------
+
                 clear_active_document(
                     user_id
                 )
@@ -248,7 +438,7 @@ def upload_pdf(
                         "Cached document reused"
                     ),
 
-                    "filename": file.filename,
+                    "filename": original_filename,
 
                     "document_id": document_id,
 
@@ -269,6 +459,24 @@ def upload_pdf(
             text
         )
 
+        # =========================================
+        # Prevent Empty PDF Text
+        # =========================================
+
+        if not chunks:
+
+            if os.path.exists(file_path):
+
+                os.remove(file_path)
+
+            return {
+                "success": False,
+                "message": (
+                    "Could not extract text "
+                    "from the PDF."
+                )
+            }
+
         embeddings = get_embedding(
             chunks
         )
@@ -279,7 +487,7 @@ def upload_pdf(
 
         document_id = insert_document(
             user_id,
-            file.filename,
+            original_filename,
             file_hash,
             datetime.now()
         )
@@ -327,7 +535,7 @@ def upload_pdf(
         session_id = create_chat_session(
             user_id=user_id,
             document_id=document_id,
-            title=file.filename
+            title=original_filename
         )
 
         # =========================================
@@ -342,7 +550,7 @@ def upload_pdf(
                 "PDF uploaded successfully"
             ),
 
-            "filename": file.filename,
+            "filename": original_filename,
 
             "document_id": document_id,
 
@@ -372,27 +580,43 @@ def upload_pdf(
             "success": False,
 
             "message": (
-                "Unable to upload document."
-            ),
-
-            "error": str(e)
+                "Unable to upload document. "
+                "Please try again."
+            )
         }
+
+
+# =========================================================
+# GET UPLOADED DOCUMENTS
+# =========================================================
+
 @router.get("/documents")
 def get_uploaded_documents(
-    current_user = Depends(get_current_user)
+    current_user=Depends(get_current_user)
 ):
 
     user_id = current_user["user_id"]
 
-    return get_documents(user_id)
+    return get_documents(
+        user_id
+    )
+
+
+# =========================================================
+# OPEN / VIEW DOCUMENT
+# =========================================================
 
 @router.get("/document/{filename}")
 def open_document(
     filename: str,
-    current_user = Depends(get_current_user)
+    current_user=Depends(get_current_user)
 ):
 
     user_id = current_user["user_id"]
+
+    # =========================================
+    # Verify Document Belongs To User
+    # =========================================
 
     document = get_document_by_filename(
         user_id,
@@ -406,9 +630,19 @@ def open_document(
             "message": "Document not found"
         }
 
-    file_path = f"{UPLOAD_FOLDER}/{filename}"
+    # =========================================
+    # User-specific PDF Path
+    # =========================================
 
-    if not os.path.exists(file_path):
+    file_path = os.path.join(
+        UPLOAD_FOLDER,
+        str(user_id),
+        filename
+    )
+
+    if not os.path.exists(
+        file_path
+    ):
 
         return {
             "success": False,
@@ -420,8 +654,12 @@ def open_document(
         media_type="application/pdf",
         filename=filename
     )
-   
-   
+
+
+# =========================================================
+# DELETE DOCUMENT
+# =========================================================
+
 @router.delete("/document/{filename}")
 def delete_document(
     filename: str,
@@ -432,13 +670,28 @@ def delete_document(
 
         user_id = current_user["user_id"]
 
-        file_path = f"{UPLOAD_FOLDER}/{filename}"
+        # =========================================
+        # User-specific PDF Path
+        # =========================================
 
-        if not os.path.exists(file_path):
+        file_path = os.path.join(
+            UPLOAD_FOLDER,
+            str(user_id),
+            filename
+        )
+
+        if not os.path.exists(
+            file_path
+        ):
+
             return {
                 "success": False,
                 "message": "File not found"
             }
+
+        # =========================================
+        # Get User's Document
+        # =========================================
 
         document = get_document_by_filename(
             user_id,
@@ -446,46 +699,91 @@ def delete_document(
         )
 
         if document is None:
+
             return {
                 "success": False,
-                "message": "Document not found in database."
+                "message": (
+                    "Document not found in database."
+                )
             }
 
         document_id = document["id"]
+
         file_hash = document["file_hash"]
 
-        # Delete PDF file
-        os.remove(file_path)
+        # =========================================
+        # Delete PDF File
+        # =========================================
 
-        # Delete embedding cache
-        cache_file = (
-            f"{EMBEDDING_CACHE_FOLDER}/{file_hash}.json"
+        os.remove(
+            file_path
         )
 
-        if os.path.exists(cache_file):
-            os.remove(cache_file)
+        # =========================================
+        # Delete Embedding Cache
+        # =========================================
 
-        # Delete FAISS index
-        faiss_db = FaissIndex(document_id)
+        cache_file = (
+            f"{EMBEDDING_CACHE_FOLDER}/"
+            f"{file_hash}.json"
+        )
+
+        if os.path.exists(
+            cache_file
+        ):
+
+            os.remove(
+                cache_file
+            )
+
+        # =========================================
+        # Delete FAISS Index
+        # =========================================
+
+        faiss_db = FaissIndex(
+            document_id
+        )
+
         faiss_db.delete_index()
 
-        # Delete database records
-        delete_document_by_id(document_id)
+        # =========================================
+        # Delete Database Records
+        # =========================================
+
+        delete_document_by_id(
+            document_id
+        )
 
         return {
+
             "success": True,
-            "message": f"{filename} deleted successfully"
+
+            "message": (
+                f"{filename} deleted successfully"
+            )
         }
 
     except Exception as e:
 
+        logger.error(
+            f"Error deleting document: {e}"
+        )
+
         return {
+
             "success": False,
-            "message": "Unable to delete document.",
-            "error": str(e)
+
+            "message": (
+                "Unable to delete document. "
+                "Please try again."
+            )
         }
-        
-        
+
+
+# =========================================================
+# GET CHAT SESSIONS
+# =========================================================
+
 @router.get("/chat/sessions/{document_id}")
 def get_document_chat_sessions(
     document_id: int,
@@ -500,11 +798,17 @@ def get_document_chat_sessions(
     )
 
     return {
+
         "success": True,
+
         "sessions": sessions
     }
-    
-    
+
+
+# =========================================================
+# GET CHAT HISTORY
+# =========================================================
+
 @router.get("/chat/history/{session_id}")
 def get_chat_history(
     session_id: int,
@@ -523,8 +827,13 @@ def get_chat_history(
         if session is None:
 
             return {
+
                 "success": False,
-                "message": "Chat session not found.",
+
+                "message": (
+                    "Chat session not found."
+                ),
+
                 "messages": []
             }
 
@@ -533,9 +842,15 @@ def get_chat_history(
         )
 
         return {
+
             "success": True,
+
             "session_id": session_id,
-            "document_id": session["document_id"],
+
+            "document_id": (
+                session["document_id"]
+            ),
+
             "messages": messages
         }
 
@@ -546,11 +861,17 @@ def get_chat_history(
         )
 
         return {
+
             "success": False,
-            "message": "Unable to load chat history.",
+
+            "message": (
+                "Unable to load chat history."
+            ),
+
             "messages": []
         }
-        
+
+
 # =========================================================
 # CREATE NEW CHAT SESSION
 # =========================================================
@@ -566,28 +887,34 @@ def create_new_chat_session(
         user_id = current_user["user_id"]
 
         # =========================================
-        # Verify document belongs to user
+        # Verify Document Belongs To User
         # =========================================
 
-        document = get_documents(user_id)
+        documents = get_documents(
+            user_id
+        )
 
         document_exists = any(
             (
                 doc.get("id")
                 or doc.get("document_id")
             ) == document_id
-            for doc in document
+            for doc in documents
         )
 
         if not document_exists:
 
             return {
+
                 "success": False,
-                "message": "Document not found."
+
+                "message": (
+                    "Document not found."
+                )
             }
 
         # =========================================
-        # Create new chat session
+        # Create New Chat Session
         # =========================================
 
         session_id = create_chat_session(
@@ -597,10 +924,16 @@ def create_new_chat_session(
         )
 
         return {
+
             "success": True,
+
             "session_id": session_id,
+
             "document_id": document_id,
-            "message": "New chat created successfully."
+
+            "message": (
+                "New chat created successfully."
+            )
         }
 
     except Exception as e:
@@ -610,7 +943,10 @@ def create_new_chat_session(
         )
 
         return {
+
             "success": False,
-            "message": "Unable to create new chat.",
-            "error": str(e)
+
+            "message": (
+                "Unable to create new chat."
+            )
         }

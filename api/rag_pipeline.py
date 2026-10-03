@@ -70,12 +70,34 @@ def ask_rag(
     # Preprocess Question
     # =========================================
 
+    original_question = (
+        question.strip()
+        if question
+        else ""
+    )
+
     processed_question = preprocess_query(
-        question
+        original_question
+    )
+
+    # =========================================
+    # Safety Fallback
+    # =========================================
+
+    if not processed_question.strip():
+
+        processed_question = (
+            original_question
+        )
+
+    logger.info(
+        f"Original question: "
+        f"{original_question}"
     )
 
     logger.info(
-        f"Processed question: {processed_question}"
+        f"Processed question: "
+        f"{processed_question}"
     )
 
     # =========================================
@@ -157,7 +179,8 @@ def ask_rag(
     # =========================================
 
     combined_results = (
-        semantic_results +
+        semantic_results
+        +
         bm25_results
     )
 
@@ -274,8 +297,13 @@ def ask_rag(
     # Generate Answer
     # =========================================
 
+    # IMPORTANT:
+    # Use ORIGINAL question for Gemini.
+    # Processed question is only used
+    # for retrieval.
+
     answer = generate_answer(
-        processed_question,
+        original_question,
         results
     )
 

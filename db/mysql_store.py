@@ -502,11 +502,12 @@ def get_active_chunks(user_id, document_id):
 # =========================================
 # Version 2 - Authentication
 # =========================================
-
 def create_user(
     name,
     email,
-    password_hash
+    password_hash,
+    verification_token,
+    verification_expires
 ):
 
     conn = None
@@ -518,8 +519,15 @@ def create_user(
 
         query = """
         INSERT INTO users
-        (name, email, password_hash)
-        VALUES (%s, %s, %s)
+        (
+            name,
+            email,
+            password_hash,
+            is_verified,
+            verification_token,
+            verification_expires
+        )
+        VALUES (%s, %s, %s, %s, %s, %s)
         """
 
         cursor.execute(
@@ -527,7 +535,10 @@ def create_user(
             (
                 name,
                 email,
-                password_hash
+                password_hash,
+                False,
+                verification_token,
+                verification_expires
             )
         )
 
@@ -549,7 +560,6 @@ def create_user(
 
         if conn:
             conn.close()
-
 
 def get_user_by_email(email):
 
@@ -589,7 +599,44 @@ def get_user_by_email(email):
 
         if conn:
             conn.close()
+            
+            
+def get_user_by_verification_token(token):
 
+    conn = None
+
+    try:
+
+        conn = get_connection()
+        cursor = conn.cursor(
+            dictionary=True
+        )
+
+        query = """
+        SELECT *
+        FROM users
+        WHERE verification_token = %s
+        """
+
+        cursor.execute(
+            query,
+            (token,)
+        )
+
+        return cursor.fetchone()
+
+    except Exception as e:
+
+        logger.error(
+            f"Error fetching user by verification token: {e}"
+        )
+
+        raise
+
+    finally:
+
+        if conn:
+            conn.close()
 
 # =========================================
 # Chat Sessions & History - Version 2
@@ -1024,6 +1071,45 @@ def get_chunks_by_document_id(
 
         logger.error(
             f"Error fetching chunks by document ID: {e}"
+        )
+
+        raise
+
+    finally:
+
+        if conn:
+            conn.close()
+            
+
+def verify_user_email(user_id):
+
+    conn = None
+
+    try:
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        query = """
+        UPDATE users
+        SET
+            is_verified = TRUE,
+            verification_token = NULL,
+            verification_expires = NULL
+        WHERE id = %s
+        """
+
+        cursor.execute(
+            query,
+            (user_id,)
+        )
+
+        conn.commit()
+
+    except Exception as e:
+
+        logger.error(
+            f"Error verifying user email: {e}"
         )
 
         raise

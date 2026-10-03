@@ -210,7 +210,7 @@ def show_chat_interface():
     # Display Conversation
     # =========================================
     
-    for chat in reversed(chat_history):
+    for chat in chat_history:
 
         # -----------------------------------------
         # Question
