@@ -1118,3 +1118,182 @@ def verify_user_email(user_id):
 
         if conn:
             conn.close()
+            
+            
+def save_password_reset_token(
+    user_id,
+    reset_token,
+    reset_token_expires
+):
+
+    conn = None
+
+    try:
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        query = """
+        UPDATE users
+        SET
+            reset_token = %s,
+            reset_token_expires = %s
+        WHERE id = %s
+        """
+
+        cursor.execute(
+            query,
+            (
+                reset_token,
+                reset_token_expires,
+                user_id
+            )
+        )
+
+        conn.commit()
+
+    except Exception as e:
+
+        logger.error(
+            f"Error saving password reset token: {e}"
+        )
+
+        raise
+
+    finally:
+
+        if conn:
+            conn.close()
+
+
+# =========================================
+# Password Reset - Version 2
+# =========================================
+
+def set_reset_token(
+    user_id,
+    reset_token,
+    reset_token_expires
+):
+
+    conn = None
+
+    try:
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        query = """
+        UPDATE users
+        SET
+            reset_token = %s,
+            reset_token_expires = %s
+        WHERE id = %s
+        """
+
+        cursor.execute(
+            query,
+            (
+                reset_token,
+                reset_token_expires,
+                user_id
+            )
+        )
+
+        conn.commit()
+
+    except Exception as e:
+
+        logger.error(
+            f"Error setting reset token: {e}"
+        )
+
+        raise
+
+    finally:
+
+        if conn:
+            conn.close()
+
+
+def get_user_by_reset_token(token):
+
+    conn = None
+
+    try:
+
+        conn = get_connection()
+        cursor = conn.cursor(
+            dictionary=True
+        )
+
+        query = """
+        SELECT *
+        FROM users
+        WHERE reset_token = %s
+        """
+
+        cursor.execute(
+            query,
+            (token,)
+        )
+
+        return cursor.fetchone()
+
+    except Exception as e:
+
+        logger.error(
+            f"Error fetching user by reset token: {e}"
+        )
+
+        raise
+
+    finally:
+
+        if conn:
+            conn.close()
+
+
+def reset_user_password(
+    user_id,
+    password_hash
+):
+
+    conn = None
+
+    try:
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        query = """
+        UPDATE users
+        SET
+            password_hash = %s,
+            reset_token = NULL,
+            reset_token_expires = NULL
+        WHERE id = %s
+        """
+
+        cursor.execute(
+            query,
+            (
+                password_hash,
+                user_id
+            )
+        )
+
+        conn.commit()
+
+    except Exception as e:
+
+        logger.error(
+            f"Error resetting user password: {e}"
+        )
+
+        raise
+
+    finally:
+
+        if conn:
+            conn.close()

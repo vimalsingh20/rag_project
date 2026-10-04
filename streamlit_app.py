@@ -5,7 +5,9 @@ from streamlit_cookies_manager import EncryptedCookieManager
 
 from frontend.login_page import (
     show_login_page,
-    show_register_page
+    show_register_page,
+    show_forgot_password_page,
+    show_reset_password_page
 )
 
 from frontend.document_manager import (
@@ -94,6 +96,43 @@ if "show_register" not in st.session_state:
 
 
 # =========================================
+# New Authentication State
+# =========================================
+
+if "registration_success" not in st.session_state:
+    st.session_state.registration_success = False
+
+if "show_forgot_password" not in st.session_state:
+    st.session_state.show_forgot_password = False
+
+if "show_reset_password" not in st.session_state:
+    st.session_state.show_reset_password = False
+
+if "reset_token" not in st.session_state:
+    st.session_state.reset_token = None
+
+
+# =========================================
+# Read Reset Token From URL
+# =========================================
+
+query_params = st.query_params
+
+reset_token = st.query_params.get(
+    "reset_token"
+)
+if reset_token:
+
+    st.session_state.reset_token = reset_token
+
+    st.session_state.show_reset_password = True
+
+    st.session_state.show_forgot_password = False
+
+    st.session_state.show_register = False
+
+
+# =========================================
 # Restore Login After Browser Refresh
 # =========================================
 
@@ -151,7 +190,34 @@ if not st.session_state.access_token:
 
 if not st.session_state.access_token:
 
-    if st.session_state.show_register:
+    # =====================================
+    # Reset Password
+    # =====================================
+
+    if (
+        st.session_state.show_reset_password
+        and st.session_state.reset_token
+    ):
+
+        show_reset_password_page(
+            st.session_state.reset_token
+        )
+
+
+    # =====================================
+    # Forgot Password
+    # =====================================
+
+    elif st.session_state.show_forgot_password:
+
+        show_forgot_password_page()
+
+
+    # =====================================
+    # Register
+    # =====================================
+
+    elif st.session_state.show_register:
 
         show_register_page()
 
@@ -163,11 +229,17 @@ if not st.session_state.access_token:
 
             st.session_state.show_register = False
 
+            st.session_state.registration_success = False
+
             st.rerun()
+
+
+    # =====================================
+    # Login
+    # =====================================
 
     else:
 
-        # IMPORTANT
         show_login_page(cookies)
 
         st.markdown("---")
@@ -177,6 +249,10 @@ if not st.session_state.access_token:
         ):
 
             st.session_state.show_register = True
+
+            st.session_state.show_forgot_password = False
+
+            st.session_state.registration_success = False
 
             st.rerun()
 
@@ -227,6 +303,13 @@ else:
         st.session_state.active_document_filename = None
         st.session_state.active_session_id = None
         st.session_state.history_loaded_for = None
+
+        # Authentication UI
+        st.session_state.show_register = False
+        st.session_state.registration_success = False
+        st.session_state.show_forgot_password = False
+        st.session_state.show_reset_password = False
+        st.session_state.reset_token = None
 
         # PDF viewer
         st.session_state.pop(

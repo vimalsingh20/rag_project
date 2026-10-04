@@ -9,10 +9,6 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-# =========================================================
-# SMTP CONFIGURATION
-# =========================================================
-
 SMTP_HOST = os.getenv(
     "SMTP_HOST",
     "smtp.gmail.com"
@@ -35,7 +31,7 @@ SMTP_PASSWORD = os.getenv(
 
 
 # =========================================================
-# SEND VERIFICATION EMAIL
+# Verification Email
 # =========================================================
 
 def send_verification_email(
@@ -45,34 +41,10 @@ def send_verification_email(
 
     try:
 
-        # -----------------------------------------
-        # Check SMTP configuration
-        # -----------------------------------------
-
-        if not SMTP_EMAIL:
-
-            raise ValueError(
-                "SMTP_EMAIL is not configured"
-            )
-
-        if not SMTP_PASSWORD:
-
-            raise ValueError(
-                "SMTP_PASSWORD is not configured"
-            )
-
-        # -----------------------------------------
-        # Verification URL
-        # -----------------------------------------
-
         verification_url = (
             "http://localhost:8000/auth/verify-email"
             f"?token={verification_token}"
         )
-
-        # -----------------------------------------
-        # Create email
-        # -----------------------------------------
 
         message = EmailMessage()
 
@@ -103,52 +75,21 @@ PDF RAG Chatbot
 """
         )
 
-        # -----------------------------------------
-        # Connect to Gmail SMTP
-        # -----------------------------------------
-
-        server = smtplib.SMTP(
+        with smtplib.SMTP(
             SMTP_HOST,
-            SMTP_PORT,
-            timeout=30
-        )
+            SMTP_PORT
+        ) as server:
 
-        # -----------------------------------------
-        # SMTP handshake
-        # -----------------------------------------
+            server.starttls()
 
-        server.ehlo()
+            server.login(
+                SMTP_EMAIL,
+                SMTP_PASSWORD
+            )
 
-        # -----------------------------------------
-        # Start TLS encryption
-        # -----------------------------------------
-
-        server.starttls()
-
-        server.ehlo()
-
-        # -----------------------------------------
-        # Login
-        # -----------------------------------------
-
-        server.login(
-            SMTP_EMAIL,
-            SMTP_PASSWORD
-        )
-
-        # -----------------------------------------
-        # Send email
-        # -----------------------------------------
-
-        server.send_message(
-            message
-        )
-
-        # -----------------------------------------
-        # Close connection
-        # -----------------------------------------
-
-        server.quit()
+            server.send_message(
+                message
+            )
 
         logger.info(
             f"Verification email sent to {recipient_email}"
@@ -160,6 +101,90 @@ PDF RAG Chatbot
 
         logger.error(
             f"Error sending verification email: {e}"
+        )
+
+        return False
+
+
+# =========================================================
+# Password Reset Email
+# =========================================================
+
+def send_password_reset_email(
+    recipient_email,
+    reset_token
+):
+
+    try:
+
+        # =========================================
+        # IMPORTANT:
+        # Reset link opens Streamlit frontend
+        # instead of directly calling FastAPI.
+        # =========================================
+
+        reset_url = (
+            "http://localhost:8501"
+            f"?reset_token={reset_token}"
+        )
+
+        message = EmailMessage()
+
+        message["Subject"] = (
+            "Reset your password - PDF RAG Chatbot"
+        )
+
+        message["From"] = SMTP_EMAIL
+
+        message["To"] = recipient_email
+
+        message.set_content(
+            f"""
+Hello,
+
+We received a request to reset your password
+for PDF RAG Chatbot.
+
+Please click the link below to reset your password:
+
+{reset_url}
+
+This password reset link will expire in 30 minutes.
+
+If you did not request a password reset,
+you can safely ignore this email.
+
+Regards,
+PDF RAG Chatbot
+"""
+        )
+
+        with smtplib.SMTP(
+            SMTP_HOST,
+            SMTP_PORT
+        ) as server:
+
+            server.starttls()
+
+            server.login(
+                SMTP_EMAIL,
+                SMTP_PASSWORD
+            )
+
+            server.send_message(
+                message
+            )
+
+        logger.info(
+            f"Password reset email sent to {recipient_email}"
+        )
+
+        return True
+
+    except Exception as e:
+
+        logger.error(
+            f"Error sending password reset email: {e}"
         )
 
         return False

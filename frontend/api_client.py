@@ -58,6 +58,45 @@ def refresh_access_token(refresh_token):
 
 
 # =========================================
+# Forgot Password
+# =========================================
+
+def forgot_password(email):
+
+    response = requests.post(
+        f"{BASE_URL}/auth/forgot-password",
+        json={
+            "email": email
+        },
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    return response.json()
+
+
+# =========================================
+# Reset Password
+# =========================================
+
+def reset_password(token, new_password):
+
+    response = requests.post(
+        f"{BASE_URL}/auth/reset-password",
+        json={
+            "token": token,
+            "new_password": new_password
+        },
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    return response.json()
+
+
+# =========================================
 # Authentication Header
 # =========================================
 
@@ -193,6 +232,11 @@ def ask_question(question, session_id):
     response.raise_for_status()
 
     return response.json()
+
+
+# =========================================
+# Create Chat Session
+# =========================================
 
 def create_chat_session(document_id):
 
