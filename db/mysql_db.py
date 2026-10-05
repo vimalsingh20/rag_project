@@ -1,13 +1,20 @@
+import os
 import mysql.connector
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
 def get_connection():
+
     conn = mysql.connector.connect(
-        host ='localhost',
-        user ='root',
-        password = '975615',
-        database = 'rag_db',
-        
-        
+        host=os.getenv("MYSQL_HOST", "localhost"),
+        user=os.getenv("MYSQL_USER", "root"),
+        password=os.getenv("MYSQL_PASSWORD", ""),
+        database=os.getenv("MYSQL_DATABASE", "rag_db"),
+        port=int(os.getenv("MYSQL_PORT", "3306"))
     )
-    
-    print("My sql connected sucessfully")
+
+    print("MySQL connected successfully")
+
     return conn
