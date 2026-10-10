@@ -14,3 +14,5 @@ nltk
 rank-bm25
 pwdlib[argon2]
 python-jose[cryptography]
+mysql-connector-python
+streamlit-cookies-manager
